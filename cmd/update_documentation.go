@@ -30,8 +30,10 @@ Environment variables (optional):
 The AI agent will:
 1. Analyze your package structure, data streams, and configuration
 2. Generate comprehensive documentation following Elastic's templates
-3. Allow you to review and request changes interactively
-4. Create or update the README.md file in /_dev_/docs/`
+3. Allow you to review and request changes interactively (or automatically accept in non-interactive mode)
+4. Create or update the README.md file in /_dev_/docs/
+
+Use --non-interactive to skip all prompts and automatically accept the first result from the LLM.`
 
 type updateDocumentationAnswers struct {
 	Confirm bool
@@ -49,6 +51,12 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	}
 
 	cmd.Printf("Package root found: %s\n", packageRoot)
+
+	// Check for non-interactive flag
+	nonInteractive, err := cmd.Flags().GetBool("non-interactive")
+	if err != nil {
+		return fmt.Errorf("failed to get non-interactive flag: %w", err)
+	}
 
 	// Check for API key availability
 	apiKey := os.Getenv("BEDROCK_API_KEY")
@@ -68,27 +76,32 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		region = "us-east-1" // Default region
 	}
 
-	// Prompt user for confirmation
-	qs := []*survey.Question{
-		{
-			Name: "confirm",
-			Prompt: &survey.Confirm{
-				Message: "Do you want to update the documentation using the AI agent",
-				Default: false,
+	// Skip confirmation prompt in non-interactive mode
+	if !nonInteractive {
+		// Prompt user for confirmation
+		qs := []*survey.Question{
+			{
+				Name: "confirm",
+				Prompt: &survey.Confirm{
+					Message: "Do you want to update the documentation using the AI agent",
+					Default: false,
+				},
+				Validate: survey.Required,
 			},
-			Validate: survey.Required,
-		},
-	}
+		}
 
-	var answers updateDocumentationAnswers
-	err = survey.Ask(qs, &answers)
-	if err != nil {
-		return fmt.Errorf("prompt failed: %w", err)
-	}
+		var answers updateDocumentationAnswers
+		err = survey.Ask(qs, &answers)
+		if err != nil {
+			return fmt.Errorf("prompt failed: %w", err)
+		}
 
-	if !answers.Confirm {
-		cmd.Println("Documentation update cancelled.")
-		return nil
+		if !answers.Confirm {
+			cmd.Println("Documentation update cancelled.")
+			return nil
+		}
+	} else {
+		cmd.Println("Running in non-interactive mode - proceeding automatically.")
 	}
 
 	// Create the LLM provider
@@ -104,7 +117,11 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run the documentation update process
-	err = docAgent.UpdateDocumentation(cmd.Context())
+	if nonInteractive {
+		err = docAgent.UpdateDocumentationNonInteractive(cmd.Context())
+	} else {
+		err = docAgent.UpdateDocumentation(cmd.Context())
+	}
 	if err != nil {
 		return fmt.Errorf("documentation update failed: %w", err)
 	}

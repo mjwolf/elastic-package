@@ -22,6 +22,7 @@ func setupUpdateCommand() *cobraext.Command {
 		Args:  cobra.NoArgs,
 		RunE:  updateDocumentationCommandAction,
 	}
+	updateDocumentationCmd.Flags().Bool("non-interactive", false, "run in non-interactive mode, accepting the first result from the LLM")
 
 	cmd := &cobra.Command{
 		Use:   "update",
