@@ -45,8 +45,8 @@ func NewDocumentationAgent(provider LLMProvider, packageRoot string) (*Documenta
 	}, nil
 }
 
-// UpdateDocumentation runs the interactive documentation update process
-func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context) error {
+// UpdateDocumentation runs the documentation update process
+func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInteractive bool) error {
 	// Read package manifest for context
 	manifest, err := packages.ReadPackageManifestFromPackageRoot(d.packageRoot)
 	if err != nil {
@@ -56,6 +56,59 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context) error {
 	// Create the initial prompt
 	prompt := d.buildInitialPrompt(manifest)
 
+	if nonInteractive {
+		fmt.Println("Starting non-interactive documentation update process...")
+		fmt.Println("The LLM agent will analyze your package and generate documentation automatically.")
+		fmt.Println()
+
+		// Execute the task once
+		fmt.Println("🤖 LLM Agent is working...")
+		result, err := d.agent.ExecuteTask(ctx, prompt)
+		if err != nil {
+			return fmt.Errorf("agent task failed: %w", err)
+		}
+
+		// Show the result
+		fmt.Println("\n📝 Agent Response:")
+		fmt.Println(strings.Repeat("-", 50))
+		fmt.Println(result.FinalContent)
+		fmt.Println(strings.Repeat("-", 50))
+
+		// Check if README.md was created/updated
+		readmeExists := d.checkReadmeExists()
+		if readmeExists {
+			content, err := d.readCurrentReadme()
+			if err == nil && content != "" {
+				fmt.Println("\n📄 README.md was created successfully!")
+				fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
+				return nil
+			}
+		}
+
+		// If no README was created, try once more with a specific prompt
+		fmt.Println("⚠️  No README.md was created. Trying again with specific instructions...")
+		specificPrompt := "You haven't created a README.md file yet. Please create the README.md file in the _dev_/docs/ directory based on your analysis. This is required to complete the task."
+
+		_, err = d.agent.ExecuteTask(ctx, specificPrompt)
+		if err != nil {
+			return fmt.Errorf("second attempt failed: %w", err)
+		}
+
+		// Check again
+		readmeExists = d.checkReadmeExists()
+		if readmeExists {
+			content, err := d.readCurrentReadme()
+			if err == nil && content != "" {
+				fmt.Println("\n📄 README.md was created on second attempt!")
+				fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
+				return nil
+			}
+		}
+
+		return fmt.Errorf("failed to create README.md after two attempts")
+	}
+
+	// Interactive mode
 	fmt.Println("Starting documentation update process...")
 	fmt.Println("The LLM agent will analyze your package and update the documentation.")
 	fmt.Println()
@@ -139,68 +192,6 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context) error {
 	}
 }
 
-// UpdateDocumentationNonInteractive runs the documentation update process without user interaction
-func (d *DocumentationAgent) UpdateDocumentationNonInteractive(ctx context.Context) error {
-	// Read package manifest for context
-	manifest, err := packages.ReadPackageManifestFromPackageRoot(d.packageRoot)
-	if err != nil {
-		return fmt.Errorf("failed to read package manifest: %w", err)
-	}
-
-	// Create the initial prompt
-	prompt := d.buildInitialPrompt(manifest)
-
-	fmt.Println("Starting non-interactive documentation update process...")
-	fmt.Println("The LLM agent will analyze your package and generate documentation automatically.")
-	fmt.Println()
-
-	// Execute the task once
-	fmt.Println("🤖 LLM Agent is working...")
-	result, err := d.agent.ExecuteTask(ctx, prompt)
-	if err != nil {
-		return fmt.Errorf("agent task failed: %w", err)
-	}
-
-	// Show the result
-	fmt.Println("\n📝 Agent Response:")
-	fmt.Println(strings.Repeat("-", 50))
-	fmt.Println(result.FinalContent)
-	fmt.Println(strings.Repeat("-", 50))
-
-	// Check if README.md was created/updated
-	readmeExists := d.checkReadmeExists()
-	if readmeExists {
-		content, err := d.readCurrentReadme()
-		if err == nil && content != "" {
-			fmt.Println("\n📄 README.md was created successfully!")
-			fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
-			return nil
-		}
-	}
-
-	// If no README was created, try once more with a specific prompt
-	fmt.Println("⚠️  No README.md was created. Trying again with specific instructions...")
-	specificPrompt := "You haven't created a README.md file yet. Please create the README.md file in the _dev_/docs/ directory based on your analysis. This is required to complete the task."
-
-	_, err = d.agent.ExecuteTask(ctx, specificPrompt)
-	if err != nil {
-		return fmt.Errorf("second attempt failed: %w", err)
-	}
-
-	// Check again
-	readmeExists = d.checkReadmeExists()
-	if readmeExists {
-		content, err := d.readCurrentReadme()
-		if err == nil && content != "" {
-			fmt.Println("\n📄 README.md was created on second attempt!")
-			fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
-			return nil
-		}
-	}
-
-	return fmt.Errorf("failed to create README.md after two attempts")
-}
-
 // buildInitialPrompt creates the initial prompt for the LLM
 func (d *DocumentationAgent) buildInitialPrompt(manifest *packages.PackageManifest) string {
 	return fmt.Sprintf(`You are a documentation assistant for Elastic Integrations. Your task is to analyze the current package and update/create the README.md file in the _dev_/docs/ directory.
@@ -229,7 +220,6 @@ Your tasks:
 4. Create or update the _dev_/docs/README.md file following the template structure
 5. Fill in all the placeholder sections with relevant information from the package
 6. Ensure the documentation is comprehensive and helpful for users
-7. If you are unsure 
 
 Please start by exploring the package structure to understand what you're working with.`,
 		manifest.Name,

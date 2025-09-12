@@ -117,11 +117,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run the documentation update process
-	if nonInteractive {
-		err = docAgent.UpdateDocumentationNonInteractive(cmd.Context())
-	} else {
-		err = docAgent.UpdateDocumentation(cmd.Context())
-	}
+	err = docAgent.UpdateDocumentation(cmd.Context(), nonInteractive)
 	if err != nil {
 		return fmt.Errorf("documentation update failed: %w", err)
 	}
