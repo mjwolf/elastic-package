@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/elastic/elastic-package/internal/llmagent"
@@ -61,13 +62,18 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	// Check for API key availability
 	apiKey := os.Getenv("BEDROCK_API_KEY")
 	if apiKey == "" {
-		cmd.Println("AI agent is not available (BEDROCK_API_KEY not set).")
+		// Use colors to highlight the manual instructions
+		yellow := color.New(color.FgYellow)
+		cyan := color.New(color.FgCyan)
+		green := color.New(color.FgGreen, color.Bold)
+		
+		yellow.Println("AI agent is not available (BEDROCK_API_KEY not set).")
 		cmd.Println()
-		cmd.Println("To update the documentation manually:")
-		cmd.Println("1. Edit `_dev_/docs/README.md`")
-		cmd.Println("2. Run `elastic-package build`")
+		cyan.Println("To update the documentation manually:")
+		green.Println("  1. Edit `_dev_/docs/README.md`")
+		green.Println("  2. Run `elastic-package build`")
 		cmd.Println()
-		cmd.Println("For AI-powered documentation updates, set the BEDROCK_API_KEY environment variable.")
+		cyan.Println("For AI-powered documentation updates, set the BEDROCK_API_KEY environment variable.")
 		return nil
 	}
 
