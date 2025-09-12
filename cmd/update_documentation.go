@@ -16,14 +16,16 @@ import (
 	"github.com/elastic/elastic-package/internal/packages"
 )
 
-const updateDocumentationLongDescription = `Use this command to update package documentation using an AI agent.
+const updateDocumentationLongDescription = `Use this command to update package documentation using an AI agent or get manual instructions.
 
-The command uses an agentic LLM to analyze your package and update the /_dev_/docs/README.md file 
-with comprehensive documentation based on the package contents and structure.
+If BEDROCK_API_KEY is available, the command uses an agentic LLM to analyze your package and update 
+the /_dev_/docs/README.md file with comprehensive documentation based on the package contents and structure.
 
-Requirements:
-- BEDROCK_API_KEY environment variable must be set
-- BEDROCK_REGION environment variable (optional, defaults to us-east-1)
+If BEDROCK_API_KEY is not set, the command provides manual instructions for updating documentation.
+
+Environment variables (optional):
+- BEDROCK_API_KEY: API key for Amazon Bedrock (enables AI agent)
+- BEDROCK_REGION: AWS region (defaults to us-east-1)
 
 The AI agent will:
 1. Analyze your package structure, data streams, and configuration
@@ -48,10 +50,17 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 
 	cmd.Printf("Package root found: %s\n", packageRoot)
 
-	// Check for required environment variables
+	// Check for API key availability
 	apiKey := os.Getenv("BEDROCK_API_KEY")
 	if apiKey == "" {
-		return errors.New("BEDROCK_API_KEY environment variable is required")
+		cmd.Println("AI agent is not available (BEDROCK_API_KEY not set).")
+		cmd.Println()
+		cmd.Println("To update the documentation manually:")
+		cmd.Println("1. Edit `_dev_/docs/README.md`")
+		cmd.Println("2. Run `elastic-package build`")
+		cmd.Println()
+		cmd.Println("For AI-powered documentation updates, set the BEDROCK_API_KEY environment variable.")
+		return nil
 	}
 
 	region := os.Getenv("BEDROCK_REGION")
