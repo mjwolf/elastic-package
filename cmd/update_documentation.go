@@ -19,14 +19,15 @@ import (
 
 const updateDocumentationLongDescription = `Use this command to update package documentation using an AI agent or get manual instructions.
 
-If BEDROCK_API_KEY is available, the command uses an agentic LLM to analyze your package and update 
-the /_dev_/docs/README.md file with comprehensive documentation based on the package contents and structure.
+The command supports multiple LLM providers and will automatically use the first available provider based on 
+environment variables. It analyzes your package and updates the /_dev_/docs/README.md file with comprehensive 
+documentation based on the package contents and structure.
 
-If BEDROCK_API_KEY is not set, the command provides manual instructions for updating documentation.
-
-Environment variables (optional):
-- BEDROCK_API_KEY: API key for Amazon Bedrock (enables AI agent)
+Environment variables for LLM providers (pick one):
+- BEDROCK_API_KEY: API key for Amazon Bedrock
 - BEDROCK_REGION: AWS region (defaults to us-east-1)
+- GOOGLE_AI_STUDIO_API_KEY: API key for Google AI Studio
+- GOOGLE_AI_STUDIO_MODEL: Model ID (defaults to gemini-1.5-flash)
 
 The AI agent will:
 1. Analyze your package structure, data streams, and configuration
@@ -59,27 +60,26 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get non-interactive flag: %w", err)
 	}
 
-	// Check for API key availability
-	apiKey := os.Getenv("BEDROCK_API_KEY")
-	if apiKey == "" {
+	// Check for API key availability for different providers
+	bedrockAPIKey := os.Getenv("BEDROCK_API_KEY")
+	googleAPIKey := os.Getenv("GOOGLE_AI_STUDIO_API_KEY")
+
+	if bedrockAPIKey == "" && googleAPIKey == "" {
 		// Use colors to highlight the manual instructions
 		yellow := color.New(color.FgYellow)
 		cyan := color.New(color.FgCyan)
 		green := color.New(color.FgGreen, color.Bold)
-		
-		yellow.Println("AI agent is not available (BEDROCK_API_KEY not set).")
+
+		yellow.Println("AI agent is not available (no LLM provider API key set).")
 		cmd.Println()
 		cyan.Println("To update the documentation manually:")
 		green.Println("  1. Edit `_dev_/docs/README.md`")
 		green.Println("  2. Run `elastic-package build`")
 		cmd.Println()
-		cyan.Println("For AI-powered documentation updates, set the BEDROCK_API_KEY environment variable.")
+		cyan.Println("For AI-powered documentation updates, set one of these environment variables:")
+		green.Println("  - BEDROCK_API_KEY (for Amazon Bedrock)")
+		green.Println("  - GOOGLE_AI_STUDIO_API_KEY (for Google AI Studio)")
 		return nil
-	}
-
-	region := os.Getenv("BEDROCK_REGION")
-	if region == "" {
-		region = "us-east-1" // Default region
 	}
 
 	// Skip confirmation prompt in non-interactive mode
@@ -110,11 +110,29 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		cmd.Println("Running in non-interactive mode - proceeding automatically.")
 	}
 
-	// Create the LLM provider
-	provider := llmagent.NewBedrockProvider(llmagent.BedrockConfig{
-		APIKey: apiKey,
-		Region: region,
-	})
+	// Create the LLM provider based on available API keys
+	var provider llmagent.LLMProvider
+	if bedrockAPIKey != "" {
+		region := os.Getenv("BEDROCK_REGION")
+		if region == "" {
+			region = "us-east-1" // Default region
+		}
+		provider = llmagent.NewBedrockProvider(llmagent.BedrockConfig{
+			APIKey: bedrockAPIKey,
+			Region: region,
+		})
+		cmd.Printf("Using Amazon Bedrock provider with region: %s\n", region)
+	} else if googleAPIKey != "" {
+		modelID := os.Getenv("GOOGLE_AI_STUDIO_MODEL")
+		if modelID == "" {
+			modelID = "gemini-1.5-flash" // Default model
+		}
+		provider = llmagent.NewGoogleAIStudioProvider(llmagent.GoogleAIStudioConfig{
+			APIKey:  googleAPIKey,
+			ModelID: modelID,
+		})
+		cmd.Printf("Using Google AI Studio provider with model: %s\n", modelID)
+	}
 
 	// Create the documentation agent
 	docAgent, err := llmagent.NewDocumentationAgent(provider, packageRoot)

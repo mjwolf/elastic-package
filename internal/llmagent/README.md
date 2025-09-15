@@ -24,6 +24,12 @@ Implementation for Amazon Bedrock:
 - Configurable region (default: `us-east-1`)
 - Requires API key authentication
 
+### Google AI Studio Provider (`google_ai_studio.go`)
+Implementation for Google AI Studio:
+- Supports Gemini models (default: `gemini-1.5-flash`)
+- Uses Google's Generative Language API
+- Requires API key authentication
+
 ### Agent (`agent.go`)
 Core agent that:
 - Manages conversation with the LLM
@@ -41,9 +47,17 @@ Specialized agent for documentation tasks:
 ## Usage
 
 ### Environment Variables
+
+#### For Amazon Bedrock:
 ```bash
-export BEDROCK_API_KEY="your-api-key"
+export BEDROCK_API_KEY="your-bedrock-api-key"
 export BEDROCK_REGION="us-east-1"  # optional
+```
+
+#### For Google AI Studio:
+```bash
+export GOOGLE_AI_STUDIO_API_KEY="your-google-api-key"
+export GOOGLE_AI_STUDIO_MODEL="gemini-1.5-flash"  # optional
 ```
 
 ### Command
@@ -61,6 +75,25 @@ elastic-package update documentation
    - Cancel the process
 
 ## Extensibility
+
+### Using Existing Providers
+
+#### Bedrock Provider:
+```go
+provider := llmagent.NewBedrockProvider(llmagent.BedrockConfig{
+    APIKey: "your-api-key",
+    Region: "us-east-1",
+    ModelID: "anthropic.claude-3-5-sonnet-20240620-v1:0",
+})
+```
+
+#### Google AI Studio Provider:
+```go
+provider := llmagent.NewGoogleAIStudioProvider(llmagent.GoogleAIStudioConfig{
+    APIKey: "your-api-key", 
+    ModelID: "gemini-1.5-flash",
+})
+```
 
 ### Adding New LLM Providers
 1. Implement the `LLMProvider` interface
@@ -106,7 +139,7 @@ Tool{
 
 ## Future Enhancements
 
-- Support for other LLM providers (OpenAI, Anthropic, local models)
+- Support for additional LLM providers (OpenAI, Anthropic, local models)
 - Additional tools for package analysis
 - Templates for different documentation types
 - Batch processing for multiple packages
