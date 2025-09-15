@@ -13,6 +13,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 
+	"github.com/elastic/elastic-package/internal/logger"
 	"github.com/elastic/elastic-package/internal/packages"
 	"github.com/elastic/elastic-package/internal/packages/archetype"
 )
@@ -31,10 +32,10 @@ func NewDocumentationAgent(provider LLMProvider, packageRoot string) (*Documenta
 
 	// Create tools for package operations
 	tools := PackageTools(packageRoot)
-	
+
 	// Create the agent
 	agent := NewAgent(provider, tools)
-	
+
 	return &DocumentationAgent{
 		agent:           agent,
 		packageRoot:     packageRoot,
@@ -63,6 +64,17 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		result, err := d.agent.ExecuteTask(ctx, prompt)
 		if err != nil {
 			return fmt.Errorf("agent task failed: %w", err)
+		}
+		
+		// Debug logging for the full agent task response
+		logger.Debugf("DEBUG: Full agent task response follows (may contain sensitive content)")
+		logger.Debugf("Agent task response - Success: %t", result.Success)
+		logger.Debugf("Agent task response - FinalContent: %s", result.FinalContent)
+		logger.Debugf("Agent task response - Conversation entries: %d", len(result.Conversation))
+		for i, entry := range result.Conversation {
+			logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d", 
+				i, entry.Type, len(entry.Content))
+			logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
 		}
 
 		// Show the result
@@ -118,6 +130,17 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		result, err := d.agent.ExecuteTask(ctx, prompt)
 		if err != nil {
 			return fmt.Errorf("agent task failed: %w", err)
+		}
+		
+		// Debug logging for the full agent task response
+		logger.Debugf("DEBUG: Full agent task response follows (may contain sensitive content)")
+		logger.Debugf("Agent task response - Success: %t", result.Success)
+		logger.Debugf("Agent task response - FinalContent: %s", result.FinalContent)
+		logger.Debugf("Agent task response - Conversation entries: %d", len(result.Conversation))
+		for i, entry := range result.Conversation {
+			logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d", 
+				i, entry.Type, len(entry.Content))
+			logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
 		}
 
 		// Show the result

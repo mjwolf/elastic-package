@@ -11,15 +11,17 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/elastic/elastic-package/internal/logger"
 )
 
 // BedrockProvider implements LLMProvider for Amazon Bedrock
 type BedrockProvider struct {
-	apiKey    string
-	region    string
-	modelID   string
-	endpoint  string
-	client    *http.Client
+	apiKey   string
+	region   string
+	modelID  string
+	endpoint string
+	client   *http.Client
 }
 
 // BedrockConfig holds configuration for the Bedrock provider
@@ -41,6 +43,11 @@ func NewBedrockProvider(config BedrockConfig) *BedrockProvider {
 	if config.Endpoint == "" {
 		config.Endpoint = fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", config.Region)
 	}
+	
+	// Debug logging with masked API key for security
+	logger.Debugf("Creating Bedrock provider with model: %s, region: %s, endpoint: %s", 
+		config.ModelID, config.Region, config.Endpoint)
+	logger.Debugf("API key (masked for security): %s", maskAPIKey(config.APIKey))
 	
 	return &BedrockProvider{
 		apiKey:   config.APIKey,
@@ -69,7 +76,7 @@ func (b *BedrockProvider) GenerateResponse(ctx context.Context, prompt string, t
 			InputSchema: tool.Parameters,
 		}
 	}
-	
+
 	// Prepare request payload
 	requestPayload := bedrockRequest{
 		Messages: []bedrockMessage{
@@ -81,39 +88,48 @@ func (b *BedrockProvider) GenerateResponse(ctx context.Context, prompt string, t
 		MaxTokens: 4096,
 		Tools:     bedrockTools,
 	}
-	
+
 	jsonPayload, err := json.Marshal(requestPayload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-	
+
 	// Create HTTP request
 	url := fmt.Sprintf("%s/model/%s/invoke", b.endpoint, b.modelID)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonPayload))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+b.apiKey)
 	req.Header.Set("X-Region", b.region)
-	
+
 	// Send request
 	resp, err := b.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("bedrock API returned status %d", resp.StatusCode)
 	}
-	
+
 	// Parse response
 	var bedrockResp bedrockResponse
 	if err := json.NewDecoder(resp.Body).Decode(&bedrockResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	
+	// Debug logging for the full response
+	logger.Debugf("Bedrock API response - Content: %s", bedrockResp.Content)
+	logger.Debugf("Bedrock API response - StopReason: %s", bedrockResp.StopReason)
+	logger.Debugf("Bedrock API response - ToolCalls count: %d", len(bedrockResp.ToolCalls))
+	for i, toolCall := range bedrockResp.ToolCalls {
+		logger.Debugf("Bedrock API response - ToolCall[%d]: name=%s, id=%s, input=%s", 
+			i, toolCall.Name, toolCall.ID, toolCall.Input)
 	}
 	
 	// Convert to our format
@@ -122,7 +138,7 @@ func (b *BedrockProvider) GenerateResponse(ctx context.Context, prompt string, t
 		ToolCalls: make([]ToolCall, len(bedrockResp.ToolCalls)),
 		Finished:  bedrockResp.StopReason == "end_turn",
 	}
-	
+
 	for i, toolCall := range bedrockResp.ToolCalls {
 		response.ToolCalls[i] = ToolCall{
 			ID:        toolCall.ID,
@@ -130,7 +146,7 @@ func (b *BedrockProvider) GenerateResponse(ctx context.Context, prompt string, t
 			Arguments: toolCall.Input,
 		}
 	}
-	
+
 	return response, nil
 }
 
@@ -153,13 +169,26 @@ type bedrockTool struct {
 }
 
 type bedrockResponse struct {
-	Content    string              `json:"content"`
-	StopReason string              `json:"stop_reason"`
-	ToolCalls  []bedrockToolCall   `json:"tool_calls,omitempty"`
+	Content    string            `json:"content"`
+	StopReason string            `json:"stop_reason"`
+	ToolCalls  []bedrockToolCall `json:"tool_calls,omitempty"`
 }
 
 type bedrockToolCall struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Input string `json:"input"`
+}
+
+// maskAPIKey masks an API key for secure logging, showing first 8 and last 4 characters
+func maskAPIKey(apiKey string) string {
+	if len(apiKey) <= 12 {
+		// For short keys, mask most of it
+		if len(apiKey) <= 4 {
+			return "****"
+		}
+		return apiKey[:2] + "****" + apiKey[len(apiKey)-2:]
+	}
+	// For longer keys, show first 8 and last 4 characters
+	return apiKey[:8] + "****" + apiKey[len(apiKey)-4:]
 }
