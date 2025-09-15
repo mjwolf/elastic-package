@@ -33,10 +33,10 @@ type GoogleAIStudioConfig struct {
 // NewGoogleAIStudioProvider creates a new Google AI Studio LLM provider
 func NewGoogleAIStudioProvider(config GoogleAIStudioConfig) *GoogleAIStudioProvider {
 	if config.ModelID == "" {
-		config.ModelID = "gemini-1.5-flash" // Default model
+		config.ModelID = "gemini-2.0-flash" // Default model
 	}
 	if config.Endpoint == "" {
-		config.Endpoint = "https://generativelanguage.googleapis.com/v1"
+		config.Endpoint = "https://generativelanguage.googleapis.com/v1beta"
 	}
 
 	// Debug logging with masked API key for security
@@ -102,7 +102,7 @@ func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt st
 	}
 
 	// Create HTTP request
-	url := fmt.Sprintf("%s/models/%s:generateContent?key=%s", g.endpoint, g.modelID, g.apiKey)
+	url := fmt.Sprintf("%s/models/%s:generateContent", g.endpoint, g.modelID)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonPayload))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -110,6 +110,7 @@ func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt st
 
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-goog-api-key", g.apiKey)
 
 	// Send request
 	resp, err := g.client.Do(req)

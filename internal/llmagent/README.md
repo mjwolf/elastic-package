@@ -26,7 +26,7 @@ Implementation for Amazon Bedrock:
 
 ### Google AI Studio Provider (`google_ai_studio.go`)
 Implementation for Google AI Studio:
-- Supports Gemini models (default: `gemini-1.5-flash`)
+- Supports Gemini models (default: `gemini-2.0-flash`)
 - Uses Google's Generative Language API
 - Requires API key authentication
 
@@ -42,7 +42,7 @@ Specialized agent for documentation tasks:
 - Analyzes package structure and contents
 - Uses the package template (`package-docs-readme.md.tmpl`)
 - Interactive loop for user feedback
-- Creates/updates `/_dev_/docs/README.md`
+- Creates/updates `/_dev/build/docs/README.md`
 
 ## Usage
 
@@ -57,7 +57,7 @@ export BEDROCK_REGION="us-east-1"  # optional
 #### For Google AI Studio:
 ```bash
 export GOOGLE_AI_STUDIO_API_KEY="your-google-api-key"
-export GOOGLE_AI_STUDIO_MODEL="gemini-1.5-flash"  # optional
+export GOOGLE_AI_STUDIO_MODEL="gemini-2.0-flash"  # optional
 ```
 
 ### Command
@@ -91,7 +91,7 @@ provider := llmagent.NewBedrockProvider(llmagent.BedrockConfig{
 ```go
 provider := llmagent.NewGoogleAIStudioProvider(llmagent.GoogleAIStudioConfig{
     APIKey: "your-api-key", 
-    ModelID: "gemini-1.5-flash",
+    ModelID: "gemini-2.0-flash",
 })
 ```
 

@@ -65,14 +65,14 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		if err != nil {
 			return fmt.Errorf("agent task failed: %w", err)
 		}
-		
+
 		// Debug logging for the full agent task response
 		logger.Debugf("DEBUG: Full agent task response follows (may contain sensitive content)")
 		logger.Debugf("Agent task response - Success: %t", result.Success)
 		logger.Debugf("Agent task response - FinalContent: %s", result.FinalContent)
 		logger.Debugf("Agent task response - Conversation entries: %d", len(result.Conversation))
 		for i, entry := range result.Conversation {
-			logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d", 
+			logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d",
 				i, entry.Type, len(entry.Content))
 			logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
 		}
@@ -96,7 +96,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 		// If no README was created, try once more with a specific prompt
 		fmt.Println("⚠️  No README.md was created. Trying again with specific instructions...")
-		specificPrompt := "You haven't created a README.md file yet. Please create the README.md file in the _dev_/docs/ directory based on your analysis. This is required to complete the task."
+		specificPrompt := "You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis. This is required to complete the task."
 
 		_, err = d.agent.ExecuteTask(ctx, specificPrompt)
 		if err != nil {
@@ -131,14 +131,14 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		if err != nil {
 			return fmt.Errorf("agent task failed: %w", err)
 		}
-		
+
 		// Debug logging for the full agent task response
 		logger.Debugf("DEBUG: Full agent task response follows (may contain sensitive content)")
 		logger.Debugf("Agent task response - Success: %t", result.Success)
 		logger.Debugf("Agent task response - FinalContent: %s", result.FinalContent)
 		logger.Debugf("Agent task response - Conversation entries: %d", len(result.Conversation))
 		for i, entry := range result.Conversation {
-			logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d", 
+			logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d",
 				i, entry.Type, len(entry.Content))
 			logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
 		}
@@ -149,22 +149,21 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		fmt.Println(result.FinalContent)
 		fmt.Println(strings.Repeat("-", 50))
 
-		// Check if README.md was created/updated
+		// Check if README.md was created/updated and always show full content before prompting
 		readmeExists := d.checkReadmeExists()
 		if readmeExists {
 			content, err := d.readCurrentReadme()
 			if err == nil && content != "" {
-				fmt.Println("\n📄 Current README.md preview:")
-				fmt.Println(strings.Repeat("=", 50))
-				// Show first 1000 characters
-				if len(content) > 1000 {
-					fmt.Println(content[:1000] + "...")
-					fmt.Printf("\n(Showing first 1000 characters of %d total)\n", len(content))
-				} else {
-					fmt.Println(content)
-				}
-				fmt.Println(strings.Repeat("=", 50))
+				fmt.Println("\n📄 Current README.md content (_dev/build/docs/README.md):")
+				fmt.Println(strings.Repeat("=", 70))
+				fmt.Println(content)
+				fmt.Println(strings.Repeat("=", 70))
+				fmt.Printf("📊 File stats: %d characters, %d lines\n", len(content), strings.Count(content, "\n")+1)
+			} else {
+				fmt.Println("\n⚠️  README.md file exists but could not be read or is empty")
 			}
+		} else {
+			fmt.Println("\n⚠️  No README.md file found at _dev/build/docs/README.md")
 		}
 
 		// Ask user what to do next
@@ -189,8 +188,28 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 				fmt.Println("✅ Documentation update completed!")
 				return nil
 			} else {
-				fmt.Println("⚠️  No README.md was created. Continuing...")
-				prompt = "You haven't created a README.md file yet. Please create the README.md file in the _dev_/docs/ directory based on your analysis."
+				// Ask user if they want to continue or exit anyway
+				var continueChoice string
+				err = survey.AskOne(&survey.Select{
+					Message: "No README.md file was created. What would you like to do?",
+					Options: []string{
+						"Try again",
+						"Exit anyway",
+					},
+					Default: "Try again",
+				}, &continueChoice)
+
+				if err != nil {
+					return fmt.Errorf("prompt failed: %w", err)
+				}
+
+				if continueChoice == "Exit anyway" {
+					fmt.Println("⚠️  Exiting without creating README.md file.")
+					return nil
+				}
+
+				fmt.Println("🔄 Trying again to create README.md...")
+				prompt = "You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis."
 			}
 
 		case "Request changes":
@@ -214,7 +233,12 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 // buildInitialPrompt creates the initial prompt for the LLM
 func (d *DocumentationAgent) buildInitialPrompt(manifest *packages.PackageManifest) string {
-	return fmt.Sprintf(`You are a documentation assistant for Elastic Integrations. Your task is to analyze the current package and update/create the README.md file in the _dev_/docs/ directory.
+	return fmt.Sprintf(`You are a documentation assistant for Elastic Integrations. Your task is to analyze the current package and update/create the README.md file in the _dev/build/docs/ directory.
+
+IMPORTANT FILE RESTRICTIONS:
+- ONLY work with "_dev/build/docs/README.md" - this is the source documentation file
+- NEVER read or write "_docs/README.md" - this is a generated artifact and should not be modified
+- The "_docs/" directory contains generated files that are created during the build process
 
 Package Information:
 - Name: %s
@@ -225,8 +249,8 @@ Package Information:
 
 You have access to the following tools:
 - list_directory: List files and directories in the package
-- read_file: Read the contents of any file in the package
-- write_file: Write content to any file in the package
+- read_file: Read the contents of any file in the package (except generated artifacts)
+- write_file: Write content to files in the package (only to source files, not generated artifacts)
 
 Template to follow:
 The README.md should be based on this template:
@@ -235,11 +259,13 @@ The README.md should be based on this template:
 
 Your tasks:
 1. First, explore the package structure to understand what it contains
-2. Read existing documentation if any exists
+2. Read existing documentation if any exists (from _dev/build/docs/README.md only)
 3. Analyze data streams, manifests, fields, and other relevant files
-4. Create or update the _dev_/docs/README.md file following the template structure
+4. Create or update the _dev/build/docs/README.md file following the template structure
 5. Fill in all the placeholder sections with relevant information from the package
 6. Ensure the documentation is comprehensive and helpful for users
+
+Remember: Always work with "_dev/build/docs/README.md" as the source file. Never touch "_docs/README.md" or any files in the "_docs/" directory.
 
 Please start by exploring the package structure to understand what you're working with.`,
 		manifest.Name,
@@ -250,16 +276,16 @@ Please start by exploring the package structure to understand what you're workin
 		d.templateContent)
 }
 
-// checkReadmeExists checks if README.md exists in _dev_/docs/
+// checkReadmeExists checks if README.md exists in _dev/build/docs/
 func (d *DocumentationAgent) checkReadmeExists() bool {
-	readmePath := filepath.Join(d.packageRoot, "_dev_", "docs", "README.md")
+	readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
 	_, err := os.Stat(readmePath)
 	return err == nil
 }
 
 // readCurrentReadme reads the current README.md content
 func (d *DocumentationAgent) readCurrentReadme() (string, error) {
-	readmePath := filepath.Join(d.packageRoot, "_dev_", "docs", "README.md")
+	readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
 	content, err := os.ReadFile(readmePath)
 	if err != nil {
 		return "", err

@@ -33,13 +33,13 @@ func PackageTools(packageRoot string) []Tool {
 		},
 		{
 			Name:        "read_file",
-			Description: "Read the contents of a file within the package",
+			Description: "Read the contents of a file within the package. Cannot read from _docs/ directory (generated artifacts).",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"path": map[string]interface{}{
 						"type":        "string",
-						"description": "File path relative to package root",
+						"description": "File path relative to package root (excluding _docs/ directory)",
 					},
 				},
 				"required": []string{"path"},
@@ -48,13 +48,13 @@ func PackageTools(packageRoot string) []Tool {
 		},
 		{
 			Name:        "write_file",
-			Description: "Write content to a file within the package",
+			Description: "Write content to a file within the package. Cannot write to _docs/ directory (generated artifacts). Use _dev/build/docs/ for documentation source files.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"path": map[string]interface{}{
 						"type":        "string",
-						"description": "File path relative to package root",
+						"description": "File path relative to package root (excluding _docs/ directory)",
 					},
 					"content": map[string]interface{}{
 						"type":        "string",
@@ -74,27 +74,27 @@ func listDirectoryHandler(packageRoot string) ToolHandler {
 		var args struct {
 			Path string `json:"path"`
 		}
-		
+
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 			return &ToolResult{Error: fmt.Sprintf("failed to parse arguments: %v", err)}, nil
 		}
-		
+
 		// Construct the full path
 		fullPath := filepath.Join(packageRoot, args.Path)
-		
+
 		// Security check: ensure we stay within package root
 		if !strings.HasPrefix(fullPath, packageRoot) {
 			return &ToolResult{Error: "access denied: path outside package root"}, nil
 		}
-		
+
 		entries, err := os.ReadDir(fullPath)
 		if err != nil {
 			return &ToolResult{Error: fmt.Sprintf("failed to read directory: %v", err)}, nil
 		}
-		
+
 		var result strings.Builder
 		result.WriteString(fmt.Sprintf("Contents of %s:\n", args.Path))
-		
+
 		for _, entry := range entries {
 			if entry.IsDir() {
 				result.WriteString(fmt.Sprintf("  %s/ (directory)\n", entry.Name()))
@@ -107,7 +107,7 @@ func listDirectoryHandler(packageRoot string) ToolHandler {
 				}
 			}
 		}
-		
+
 		return &ToolResult{Content: result.String()}, nil
 	}
 }
@@ -118,24 +118,29 @@ func readFileHandler(packageRoot string) ToolHandler {
 		var args struct {
 			Path string `json:"path"`
 		}
-		
+
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 			return &ToolResult{Error: fmt.Sprintf("failed to parse arguments: %v", err)}, nil
 		}
-		
+
+		// Block access to generated artifacts in _docs/ directory
+		if strings.HasPrefix(args.Path, "_docs/") || strings.Contains(args.Path, "/_docs/") {
+			return &ToolResult{Error: "access denied: _docs/ contains generated artifacts and should not be read directly. Use _dev/build/docs/ for source documentation files."}, nil
+		}
+
 		// Construct the full path
 		fullPath := filepath.Join(packageRoot, args.Path)
-		
+
 		// Security check: ensure we stay within package root
 		if !strings.HasPrefix(fullPath, packageRoot) {
 			return &ToolResult{Error: "access denied: path outside package root"}, nil
 		}
-		
+
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
 			return &ToolResult{Error: fmt.Sprintf("failed to read file: %v", err)}, nil
 		}
-		
+
 		return &ToolResult{Content: string(content)}, nil
 	}
 }
@@ -147,30 +152,35 @@ func writeFileHandler(packageRoot string) ToolHandler {
 			Path    string `json:"path"`
 			Content string `json:"content"`
 		}
-		
+
 		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 			return &ToolResult{Error: fmt.Sprintf("failed to parse arguments: %v", err)}, nil
 		}
-		
+
+		// Block writing to generated artifacts in _docs/ directory
+		if strings.HasPrefix(args.Path, "_docs/") || strings.Contains(args.Path, "/_docs/") {
+			return &ToolResult{Error: "access denied: cannot write to _docs/ directory as it contains generated artifacts. Use _dev/build/docs/ for source documentation files."}, nil
+		}
+
 		// Construct the full path
 		fullPath := filepath.Join(packageRoot, args.Path)
-		
+
 		// Security check: ensure we stay within package root
 		if !strings.HasPrefix(fullPath, packageRoot) {
 			return &ToolResult{Error: "access denied: path outside package root"}, nil
 		}
-		
+
 		// Create directory if it doesn't exist
 		dir := filepath.Dir(fullPath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return &ToolResult{Error: fmt.Sprintf("failed to create directory: %v", err)}, nil
 		}
-		
+
 		// Write the file
 		if err := os.WriteFile(fullPath, []byte(args.Content), 0644); err != nil {
 			return &ToolResult{Error: fmt.Sprintf("failed to write file: %v", err)}, nil
 		}
-		
+
 		return &ToolResult{Content: fmt.Sprintf("Successfully wrote %d bytes to %s", len(args.Content), args.Path)}, nil
 	}
 }

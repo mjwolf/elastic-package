@@ -20,20 +20,20 @@ import (
 const updateDocumentationLongDescription = `Use this command to update package documentation using an AI agent or get manual instructions.
 
 The command supports multiple LLM providers and will automatically use the first available provider based on 
-environment variables. It analyzes your package and updates the /_dev_/docs/README.md file with comprehensive 
+environment variables. It analyzes your package and updates the /_dev/build/docs/README.md file with comprehensive 
 documentation based on the package contents and structure.
 
 Environment variables for LLM providers (pick one):
 - BEDROCK_API_KEY: API key for Amazon Bedrock
 - BEDROCK_REGION: AWS region (defaults to us-east-1)
 - GOOGLE_AI_STUDIO_API_KEY: API key for Google AI Studio
-- GOOGLE_AI_STUDIO_MODEL: Model ID (defaults to gemini-1.5-flash)
+- GOOGLE_AI_STUDIO_MODEL: Model ID (defaults to gemini-2.0-flash)
 
 The AI agent will:
 1. Analyze your package structure, data streams, and configuration
 2. Generate comprehensive documentation following Elastic's templates
 3. Allow you to review and request changes interactively (or automatically accept in non-interactive mode)
-4. Create or update the README.md file in /_dev_/docs/
+4. Create or update the README.md file in /_dev/build/docs/
 
 Use --non-interactive to skip all prompts and automatically accept the first result from the LLM.`
 
@@ -73,7 +73,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		yellow.Println("AI agent is not available (no LLM provider API key set).")
 		cmd.Println()
 		cyan.Println("To update the documentation manually:")
-		green.Println("  1. Edit `_dev_/docs/README.md`")
+		green.Println("  1. Edit `_dev/build/docs/README.md`")
 		green.Println("  2. Run `elastic-package build`")
 		cmd.Println()
 		cyan.Println("For AI-powered documentation updates, set one of these environment variables:")
@@ -125,7 +125,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	} else if googleAPIKey != "" {
 		modelID := os.Getenv("GOOGLE_AI_STUDIO_MODEL")
 		if modelID == "" {
-			modelID = "gemini-1.5-flash" // Default model
+			modelID = "gemini-2.0-flash" // Default model
 		}
 		provider = llmagent.NewGoogleAIStudioProvider(llmagent.GoogleAIStudioConfig{
 			APIKey:  googleAPIKey,
