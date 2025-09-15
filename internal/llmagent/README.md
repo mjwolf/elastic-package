@@ -20,7 +20,7 @@ All tools are scoped to the package directory for security.
 
 ### Bedrock Provider (`bedrock.go`)
 Implementation for Amazon Bedrock:
-- Supports Claude models (default: `anthropic.claude-3-sonnet-20240229-v1:0`)
+- Supports Claude models (default: `anthropic.claude-3-5-sonnet-20240620-v1:0`)
 - Configurable region (default: `us-east-1`)
 - Requires API key authentication
 

@@ -33,7 +33,7 @@ type BedrockConfig struct {
 // NewBedrockProvider creates a new Bedrock LLM provider
 func NewBedrockProvider(config BedrockConfig) *BedrockProvider {
 	if config.ModelID == "" {
-		config.ModelID = "anthropic.claude-3-sonnet-20240229-v1:0" // Default model
+		config.ModelID = "anthropic.claude-3-5-sonnet-20240620-v1:0" // Default model
 	}
 	if config.Region == "" {
 		config.Region = "us-east-1" // Default region
