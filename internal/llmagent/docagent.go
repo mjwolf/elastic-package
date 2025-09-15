@@ -14,6 +14,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 
 	"github.com/elastic/elastic-package/internal/packages"
+	"github.com/elastic/elastic-package/internal/packages/archetype"
 )
 
 // DocumentationAgent handles documentation updates for packages
@@ -25,23 +26,19 @@ type DocumentationAgent struct {
 
 // NewDocumentationAgent creates a new documentation agent
 func NewDocumentationAgent(provider LLMProvider, packageRoot string) (*DocumentationAgent, error) {
-	// Read the template file
-	templatePath := filepath.Join("internal", "packages", "archetype", "_static", "package-docs-readme.md.tmpl")
-	templateContent, err := os.ReadFile(templatePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read template file: %w", err)
-	}
+	// Get the embedded template content
+	templateContent := archetype.GetPackageDocsReadmeTemplate()
 
 	// Create tools for package operations
 	tools := PackageTools(packageRoot)
-
+	
 	// Create the agent
 	agent := NewAgent(provider, tools)
-
+	
 	return &DocumentationAgent{
 		agent:           agent,
 		packageRoot:     packageRoot,
-		templateContent: string(templateContent),
+		templateContent: templateContent,
 	}, nil
 }
 
