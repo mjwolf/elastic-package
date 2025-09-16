@@ -26,8 +26,8 @@ documentation based on the package contents and structure.
 Environment variables for LLM providers (pick one):
 - BEDROCK_API_KEY: API key for Amazon Bedrock
 - BEDROCK_REGION: AWS region (defaults to us-east-1)
-- GOOGLE_AI_STUDIO_API_KEY: API key for Google AI Studio
-- GOOGLE_AI_STUDIO_MODEL: Model ID (defaults to gemini-2.0-flash)
+- GEMINI_API_KEY: API key for Google AI Studio
+- GEMINI_MODEL: Model ID (defaults to gemini-2.5-pro)
 
 The AI agent will:
 1. Analyze your package structure, data streams, and configuration
@@ -62,7 +62,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 
 	// Check for API key availability for different providers
 	bedrockAPIKey := os.Getenv("BEDROCK_API_KEY")
-	googleAPIKey := os.Getenv("GOOGLE_AI_STUDIO_API_KEY")
+	googleAPIKey := os.Getenv("GEMINI_API_KEY")
 
 	if bedrockAPIKey == "" && googleAPIKey == "" {
 		// Use colors to highlight the manual instructions
@@ -78,7 +78,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		cmd.Println()
 		cyan.Println("For AI-powered documentation updates, set one of these environment variables:")
 		green.Println("  - BEDROCK_API_KEY (for Amazon Bedrock)")
-		green.Println("  - GOOGLE_AI_STUDIO_API_KEY (for Google AI Studio)")
+		green.Println("  - GEMINI_API_KEY (for Google AI Studio)")
 		return nil
 	}
 
@@ -123,9 +123,9 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		})
 		cmd.Printf("Using Amazon Bedrock provider with region: %s\n", region)
 	} else if googleAPIKey != "" {
-		modelID := os.Getenv("GOOGLE_AI_STUDIO_MODEL")
+		modelID := os.Getenv("GEMINI_MODEL")
 		if modelID == "" {
-			modelID = "gemini-2.0-flash" // Default model
+			modelID = "gemini-2.5-pro" // Default model
 		}
 		provider = llmagent.NewGoogleAIStudioProvider(llmagent.GoogleAIStudioConfig{
 			APIKey:  googleAPIKey,

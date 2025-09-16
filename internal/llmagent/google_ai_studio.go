@@ -33,7 +33,7 @@ type GoogleAIStudioConfig struct {
 // NewGoogleAIStudioProvider creates a new Google AI Studio LLM provider
 func NewGoogleAIStudioProvider(config GoogleAIStudioConfig) *GoogleAIStudioProvider {
 	if config.ModelID == "" {
-		config.ModelID = "gemini-2.0-flash" // Default model
+		config.ModelID = "gemini-2.5-pro" // Default model
 	}
 	if config.Endpoint == "" {
 		config.Endpoint = "https://generativelanguage.googleapis.com/v1beta"

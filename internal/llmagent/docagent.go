@@ -184,33 +184,41 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 		switch action {
 		case "Accept and finalize":
+			// Always try to write content from LLM response first, then check if file exists
+			if d.tryWriteReadmeFromResponse(result) {
+				fmt.Println("✅ Documentation created from LLM response and saved!")
+				return nil
+			}
+
+			// Check if README was already created by the LLM using tools
 			if readmeExists {
 				fmt.Println("✅ Documentation update completed!")
 				return nil
-			} else {
-				// Ask user if they want to continue or exit anyway
-				var continueChoice string
-				err = survey.AskOne(&survey.Select{
-					Message: "No README.md file was created. What would you like to do?",
-					Options: []string{
-						"Try again",
-						"Exit anyway",
-					},
-					Default: "Try again",
-				}, &continueChoice)
-
-				if err != nil {
-					return fmt.Errorf("prompt failed: %w", err)
-				}
-
-				if continueChoice == "Exit anyway" {
-					fmt.Println("⚠️  Exiting without creating README.md file.")
-					return nil
-				}
-
-				fmt.Println("🔄 Trying again to create README.md...")
-				prompt = "You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis."
 			}
+
+			// No content found in response and no file exists
+			// Ask user if they want to continue or exit anyway
+			var continueChoice string
+			err = survey.AskOne(&survey.Select{
+				Message: "No README.md file was created. What would you like to do?",
+				Options: []string{
+					"Try again",
+					"Exit anyway",
+				},
+				Default: "Try again",
+			}, &continueChoice)
+
+			if err != nil {
+				return fmt.Errorf("prompt failed: %w", err)
+			}
+
+			if continueChoice == "Exit anyway" {
+				fmt.Println("⚠️  Exiting without creating README.md file.")
+				return nil
+			}
+
+			fmt.Println("🔄 Trying again to create README.md...")
+			prompt = "You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis."
 
 		case "Request changes":
 			var changes string
@@ -263,6 +271,7 @@ Your tasks:
 3. Analyze data streams, manifests, fields, and other relevant files
 4. Create or update the _dev/build/docs/README.md file following the template structure
 5. Fill in all the placeholder sections with relevant information from the package
+5. You can and should use web search tools to find more information about the service or product that this integration collects data from, and how to set up data collection with it.
 6. Ensure the documentation is comprehensive and helpful for users
 
 Remember: Always work with "_dev/build/docs/README.md" as the source file. Never touch "_docs/README.md" or any files in the "_docs/" directory.
@@ -291,4 +300,125 @@ func (d *DocumentationAgent) readCurrentReadme() (string, error) {
 		return "", err
 	}
 	return string(content), nil
+}
+
+// tryWriteReadmeFromResponse attempts to extract README content from the LLM response and write it to disk
+func (d *DocumentationAgent) tryWriteReadmeFromResponse(result *TaskResult) bool {
+	if result == nil || result.FinalContent == "" {
+		return false
+	}
+
+	// Look for markdown content patterns in the response
+	content := result.FinalContent
+
+	// Check if the response contains what looks like README content
+	// Look for markdown headers, typical README sections, etc.
+	if strings.Contains(content, "# ") ||
+		strings.Contains(content, "## ") ||
+		strings.Contains(content, "### ") ||
+		(strings.Contains(content, "Integration") && strings.Contains(content, "Elastic")) {
+
+		// Clean up the content - remove any assistant commentary
+		readmeContent := d.extractReadmeContent(content)
+
+		if readmeContent != "" {
+			// Write to the README file
+			readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
+
+			// Create directory if it doesn't exist
+			dir := filepath.Dir(readmePath)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				fmt.Printf("⚠️  Failed to create directory: %v\n", err)
+				return false
+			}
+
+			// Write the file
+			if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
+				fmt.Printf("⚠️  Failed to write README file: %v\n", err)
+				return false
+			}
+
+			fmt.Printf("📝 Extracted and saved README content (%d characters)\n", len(readmeContent))
+			return true
+		}
+	}
+
+	return false
+}
+
+// extractReadmeContent cleans up and extracts the actual README content from LLM response
+func (d *DocumentationAgent) extractReadmeContent(content string) string {
+	lines := strings.Split(content, "\n")
+	var readmeLines []string
+	inCodeBlock := false
+	foundReadmeStart := false
+
+	for _, line := range lines {
+		// Skip lines that look like assistant commentary
+		if strings.HasPrefix(line, "I ") ||
+			strings.HasPrefix(line, "I'll ") ||
+			strings.HasPrefix(line, "Here's ") ||
+			strings.HasPrefix(line, "Based on ") {
+			continue
+		}
+
+		// Handle code blocks
+		if strings.HasPrefix(line, "```") {
+			inCodeBlock = !inCodeBlock
+			if strings.Contains(line, "markdown") {
+				foundReadmeStart = true
+				continue
+			}
+			if foundReadmeStart && !inCodeBlock {
+				// End of markdown code block - we got our content
+				break
+			}
+			continue
+		}
+
+		// If we're in a markdown code block, collect the content
+		if inCodeBlock && foundReadmeStart {
+			readmeLines = append(readmeLines, line)
+			continue
+		}
+
+		// If not in code block, look for direct markdown content
+		if !inCodeBlock && (strings.HasPrefix(line, "# ") || foundReadmeStart) {
+			foundReadmeStart = true
+			readmeLines = append(readmeLines, line)
+		}
+	}
+
+	// If no markdown code block was found, try to extract direct content
+	if len(readmeLines) == 0 {
+		foundReadmeStart = false
+		for _, line := range lines {
+			// Look for the start of README content
+			if strings.HasPrefix(line, "# ") &&
+				(strings.Contains(line, "Integration") || strings.Contains(line, "Package")) {
+				foundReadmeStart = true
+			}
+
+			if foundReadmeStart {
+				// Skip obvious assistant commentary
+				if strings.HasPrefix(line, "I ") ||
+					strings.HasPrefix(line, "This ") ||
+					strings.HasPrefix(line, "Based on ") ||
+					strings.HasPrefix(line, "Here's ") {
+					continue
+				}
+				readmeLines = append(readmeLines, line)
+			}
+		}
+	}
+
+	result := strings.Join(readmeLines, "\n")
+	result = strings.TrimSpace(result)
+
+	// Ensure it looks like valid README content
+	if len(result) > 100 && (strings.Contains(result, "# ") || strings.Contains(result, "## ")) {
+		return result
+	}
+
+	return ""
 }
