@@ -122,6 +122,14 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 	fmt.Println("The LLM agent will analyze your package and update the documentation.")
 	fmt.Println()
 
+	// Store original content for validation if it exists
+	var originalReadmeContent string
+	if d.checkReadmeExists() {
+		if content, err := d.readCurrentReadme(); err == nil {
+			originalReadmeContent = content
+		}
+	}
+
 	// Interactive loop
 	for {
 		fmt.Println("🤖 LLM Agent is working...")
@@ -186,12 +194,39 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		case "Accept and finalize":
 			// Always try to write content from LLM response first, then check if file exists
 			if d.tryWriteReadmeFromResponse(result) {
+				// Validate preserved sections if we had original content
+				if originalReadmeContent != "" {
+					if newContent, err := d.readCurrentReadme(); err == nil {
+						warnings := d.validatePreservedSections(originalReadmeContent, newContent)
+						if len(warnings) > 0 {
+							fmt.Println("⚠️  Warning: Some human-edited sections may not have been preserved:")
+							for _, warning := range warnings {
+								fmt.Printf("   - %s\n", warning)
+							}
+							fmt.Println("   Please review the documentation to ensure important content wasn't lost.")
+						}
+					}
+				}
 				fmt.Println("✅ Documentation created from LLM response and saved!")
 				return nil
 			}
 
 			// Check if README was already created by the LLM using tools
 			if readmeExists {
+				// Validate that human-edited sections were preserved if we had original content
+				if originalReadmeContent != "" {
+					if newContent, err := d.readCurrentReadme(); err == nil {
+						warnings := d.validatePreservedSections(originalReadmeContent, newContent)
+						if len(warnings) > 0 {
+							fmt.Println("⚠️  Warning: Some human-edited sections may not have been preserved:")
+							for _, warning := range warnings {
+								fmt.Printf("   - %s\n", warning)
+							}
+							fmt.Println("   Please review the documentation to ensure important content wasn't lost.")
+						}
+					}
+				}
+
 				fmt.Println("✅ Documentation update completed!")
 				return nil
 			}
@@ -265,14 +300,24 @@ The README.md should be based on this template:
 
 %s
 
+HUMAN-EDITED CONTENT PRESERVATION:
+When updating existing README.md files, you MUST preserve any sections marked with special comments:
+- Content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> must be preserved EXACTLY as-is
+- Content between <!-- PRESERVE START --> and <!-- PRESERVE END --> must be preserved EXACTLY as-is  
+- These sections contain human-authored content that should never be modified or replaced
+- When rewriting the file, include these sections in their original location with original formatting
+
 Your tasks:
 1. First, explore the package structure to understand what it contains
 2. Read existing documentation if any exists (from _dev/build/docs/README.md only)
-3. Analyze data streams, manifests, fields, and other relevant files
-4. Create or update the _dev/build/docs/README.md file following the template structure
-5. Fill in all the placeholder sections with relevant information from the package
-5. You can and should use web search tools to find more information about the service or product that this integration collects data from, and how to set up data collection with it.
-6. Ensure the documentation is comprehensive and helpful for users
+3. Check for any human-edited sections marked with preservation comments
+4. Analyze data streams, manifests, fields, and other relevant files
+5. Create or update the _dev/build/docs/README.md file following the template structure
+6. Fill in all the placeholder sections with relevant information from the package
+7. You can and should use web search tools to find more information about the service or product that this integration collects data from, and how to set up data collection with it.
+8. Ensure the documentation is comprehensive and helpful for users
+9. If you are not sure that information is correct, err on the side of caution and do not make assumptions and do not make up information.
+10. When writing the final README.md, preserve all human-edited sections in their exact original form and location
 
 Remember: Always work with "_dev/build/docs/README.md" as the source file. Never touch "_docs/README.md" or any files in the "_docs/" directory.
 
@@ -421,4 +466,64 @@ func (d *DocumentationAgent) extractReadmeContent(content string) string {
 	}
 
 	return ""
+}
+
+// validatePreservedSections checks if human-edited sections are preserved in the new content
+func (d *DocumentationAgent) validatePreservedSections(originalContent, newContent string) []string {
+	var warnings []string
+
+	// Extract preserved sections from original content
+	preservedSections := d.extractPreservedSections(originalContent)
+
+	// Check if each preserved section exists in the new content
+	for marker, content := range preservedSections {
+		if !strings.Contains(newContent, content) {
+			warnings = append(warnings, fmt.Sprintf("Human-edited section '%s' was not preserved", marker))
+		}
+	}
+
+	return warnings
+}
+
+// extractPreservedSections extracts all human-edited sections from content
+func (d *DocumentationAgent) extractPreservedSections(content string) map[string]string {
+	sections := make(map[string]string)
+
+	// Define marker pairs
+	markers := []struct {
+		start, end string
+		name       string
+	}{
+		{"<!-- HUMAN-EDITED START -->", "<!-- HUMAN-EDITED END -->", "HUMAN-EDITED"},
+		{"<!-- PRESERVE START -->", "<!-- PRESERVE END -->", "PRESERVE"},
+	}
+
+	for _, marker := range markers {
+		startIdx := 0
+		sectionNum := 1
+
+		for {
+			start := strings.Index(content[startIdx:], marker.start)
+			if start == -1 {
+				break
+			}
+			start += startIdx
+
+			end := strings.Index(content[start:], marker.end)
+			if end == -1 {
+				break
+			}
+			end += start
+
+			// Extract the full section including markers
+			sectionContent := content[start : end+len(marker.end)]
+			sectionKey := fmt.Sprintf("%s-%d", marker.name, sectionNum)
+			sections[sectionKey] = sectionContent
+
+			startIdx = end + len(marker.end)
+			sectionNum++
+		}
+	}
+
+	return sections
 }
