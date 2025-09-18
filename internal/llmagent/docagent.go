@@ -63,11 +63,18 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		fmt.Println("The LLM agent will analyze your package and generate documentation automatically.")
 		fmt.Println()
 
-		// Execute the task once
+		// Execute the task once with animation
 		fmt.Println("🤖 LLM Agent is working...")
-		result, err := d.agent.ExecuteTask(ctx, prompt)
+		animation := NewAnimatedStatus("LLM Agent is working...")
+		animation.Start()
+		
+		result, err := d.agent.ExecuteTaskWithAnimation(ctx, prompt, animation)
+		
 		if err != nil {
+			animation.Error("Agent task failed")
 			return fmt.Errorf("agent task failed: %w", err)
+		} else {
+			animation.Finish("Task completed")
 		}
 
 		// Debug logging for the full agent task response
@@ -144,11 +151,17 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 	// Interactive loop
 	for {
 		fmt.Println("🤖 LLM Agent is working...")
+		animation := NewAnimatedStatus("LLM Agent is working...")
+		animation.Start()
 
-		// Execute the task
-		result, err := d.agent.ExecuteTask(ctx, prompt)
+		// Execute the task with animation
+		result, err := d.agent.ExecuteTaskWithAnimation(ctx, prompt, animation)
+		
 		if err != nil {
+			animation.Error("Agent task failed")
 			return fmt.Errorf("agent task failed: %w", err)
+		} else {
+			animation.Finish("Task completed")
 		}
 
 		// Debug logging for the full agent task response

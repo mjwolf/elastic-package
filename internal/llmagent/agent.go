@@ -72,7 +72,17 @@ func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, ani
 
 		// If there are tool calls, execute them
 		if len(response.ToolCalls) > 0 {
+			// Update animation to show tool execution
+			if animation != nil {
+				animation.Update("Executing tools...")
+			}
+			
 			for _, toolCall := range response.ToolCalls {
+				// Flash animation for each tool call
+				if animation != nil {
+					animation.Flash()
+				}
+				
 				result, err := a.executeTool(ctx, toolCall)
 				if err != nil {
 					conversation = append(conversation, ConversationEntry{

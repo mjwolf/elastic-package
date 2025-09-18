@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// AnimatedStatus provides NES-style animated status display
+// AnimatedStatus provides animated status display
 type AnimatedStatus struct {
 	message    string
 	active     bool
@@ -22,7 +22,6 @@ type AnimatedStatus struct {
 
 // NewAnimatedStatus creates a new animated status display
 func NewAnimatedStatus(message string) *AnimatedStatus {
-	// NES-style animation frames
 	frames := []string{
 		"[▓░░░]", // Loading bar style
 		"[▓▓░░]",
@@ -33,7 +32,7 @@ func NewAnimatedStatus(message string) *AnimatedStatus {
 		"[░░░▓]",
 		"[░░░░]",
 	}
-	
+
 	return &AnimatedStatus{
 		message: message,
 		frames:  frames,
@@ -53,7 +52,7 @@ func (a *AnimatedStatus) Start() {
 
 	// Hide cursor
 	fmt.Print("\033[?25l")
-	
+
 	go a.animate()
 }
 
@@ -68,7 +67,7 @@ func (a *AnimatedStatus) Stop() {
 	a.mutex.Unlock()
 
 	a.stopCh <- true
-	
+
 	// Clear the line and show cursor
 	fmt.Print("\r\033[K")
 	fmt.Print("\033[?25h")
@@ -78,7 +77,7 @@ func (a *AnimatedStatus) Stop() {
 func (a *AnimatedStatus) Update(newMessage string) {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
-	
+
 	if a.active {
 		a.message = newMessage
 		// Add a brief "flash" effect by changing frame
@@ -88,7 +87,7 @@ func (a *AnimatedStatus) Update(newMessage string) {
 
 // animate runs the animation loop
 func (a *AnimatedStatus) animate() {
-	ticker := time.NewTicker(150 * time.Millisecond) // NES-style frame rate
+	ticker := time.NewTicker(150 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -101,18 +100,18 @@ func (a *AnimatedStatus) animate() {
 				a.mutex.Unlock()
 				return
 			}
-			
+
 			// Print the current frame
 			frame := a.frames[a.frameIndex]
 			fmt.Printf("\r🤖 %s %s", a.message, frame)
-			
+
 			// Add occasional "power-up" effect
 			if a.frameIndex == 3 { // When bar is full
 				fmt.Print(" ✨")
 			} else {
 				fmt.Print("   ") // Clear the sparkle
 			}
-			
+
 			a.frameIndex = (a.frameIndex + 1) % len(a.frames)
 			a.mutex.Unlock()
 		}
@@ -123,7 +122,7 @@ func (a *AnimatedStatus) animate() {
 func (a *AnimatedStatus) Flash() {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
-	
+
 	if a.active {
 		// Jump to the "full" frame for visual feedback
 		a.frameIndex = 3
