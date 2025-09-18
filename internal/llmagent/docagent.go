@@ -6,6 +6,7 @@ package llmagent
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,9 @@ import (
 	"github.com/elastic/elastic-package/internal/packages/archetype"
 	"github.com/elastic/elastic-package/internal/tui"
 )
+
+//go:embed _static/example_readme.md
+var exampleReadmeContent string
 
 // DocumentationAgent handles documentation updates for packages
 type DocumentationAgent struct {
@@ -295,6 +299,19 @@ The README.md should be based on this template:
 
 %s
 
+EXAMPLE OF A WELL-STRUCTURED README:
+Here is an example of a high-quality integration README that demonstrates excellent structure, content, and formatting:
+
+%s
+
+Use this example as a reference for:
+- Clear and informative title and description
+- Comprehensive compatibility information
+- Detailed configuration instructions
+- Proper use of links to official documentation
+- Well-organized sections and formatting
+- Professional tone and helpful notes for users
+
 HUMAN-EDITED CONTENT PRESERVATION:
 When updating existing README.md files, you MUST preserve any sections marked with special comments:
 - Content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> must be preserved EXACTLY as-is
@@ -322,7 +339,8 @@ Please start by exploring the package structure to understand what you're workin
 		manifest.Type,
 		manifest.Version,
 		manifest.Description,
-		d.templateContent)
+		d.templateContent,
+		exampleReadmeContent)
 }
 
 // checkReadmeExists checks if README.md exists in _dev/build/docs/
