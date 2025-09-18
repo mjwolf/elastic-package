@@ -33,13 +33,13 @@ func PackageTools(packageRoot string) []Tool {
 		},
 		{
 			Name:        "read_file",
-			Description: "Read the contents of a file within the package. Cannot read from docs/ directory (generated artifacts).",
+			Description: "Read the contents of a file within the package.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"path": map[string]interface{}{
 						"type":        "string",
-						"description": "File path relative to package root (excluding docs/ directory)",
+						"description": "File path relative to package root",
 					},
 				},
 				"required": []string{"path"},
@@ -48,13 +48,13 @@ func PackageTools(packageRoot string) []Tool {
 		},
 		{
 			Name:        "write_file",
-			Description: "Write content to a file within the package. Cannot write to docs/ directory (generated artifacts). Use _dev/build/docs/ for documentation source files.",
+			Description: "Write content to a file within the package. Use _dev/build/docs/ for documentation source files.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"path": map[string]interface{}{
 						"type":        "string",
-						"description": "File path relative to package root (excluding docs/ directory)",
+						"description": "File path relative to package root",
 					},
 					"content": map[string]interface{}{
 						"type":        "string",
@@ -130,7 +130,7 @@ func readFileHandler(packageRoot string) ToolHandler {
 
 		// Block access to generated artifacts in docs/ directory
 		if strings.HasPrefix(args.Path, "docs/") || strings.Contains(args.Path, "/docs/") {
-			return &ToolResult{Error: "access denied: docs/ contains generated artifacts and should not be read directly. Use _dev/build/docs/ for source documentation files."}, nil
+			return &ToolResult{Error: "access denied: invalid path"}, nil
 		}
 
 		// Construct the full path
@@ -164,7 +164,7 @@ func writeFileHandler(packageRoot string) ToolHandler {
 
 		// Block writing to generated artifacts in docs/ directory
 		if strings.HasPrefix(args.Path, "docs/") || strings.Contains(args.Path, "/docs/") {
-			return &ToolResult{Error: "access denied: cannot write to docs/ directory as it contains generated artifacts. Use _dev/build/docs/ for source documentation files."}, nil
+			return &ToolResult{Error: "access denied: invalid path"}, nil
 		}
 
 		// Construct the full path

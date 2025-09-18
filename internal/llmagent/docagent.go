@@ -171,24 +171,24 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		// Check if the response indicates an error occurred
 		if isErrorResponse(result.FinalContent) {
 			fmt.Println("\n❌ Error detected in LLM response.")
-			
+
 			// Ask user what to do about the error
 			errorPrompt := tui.NewSelect("What would you like to do?", []string{
 				"Try again",
 				"Exit",
 			}, "Try again")
-			
+
 			var errorAction string
 			err = tui.AskOne(errorPrompt, &errorAction)
 			if err != nil {
 				return fmt.Errorf("prompt failed: %w", err)
 			}
-			
+
 			if errorAction == "Exit" {
 				fmt.Println("⚠️  Exiting due to LLM error.")
 				return fmt.Errorf("user chose to exit due to LLM error")
 			}
-			
+
 			// Continue the loop to try again
 			prompt = "The previous attempt encountered an error. Please try a different approach to analyze the package and create/update the documentation."
 			continue
@@ -573,7 +573,7 @@ func isErrorResponse(content string) bool {
 		"Failed to",
 		"Error occurred",
 	}
-	
+
 	contentLower := strings.ToLower(content)
 	for _, indicator := range errorIndicators {
 		if strings.Contains(contentLower, strings.ToLower(indicator)) {
