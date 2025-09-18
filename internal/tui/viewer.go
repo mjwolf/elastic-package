@@ -14,23 +14,23 @@ import (
 
 // Viewer represents a scrollable text viewer
 type Viewer struct {
-	title      string
-	content    string
-	lines      []string
-	viewport   int
-	offset     int
-	hoffset    int // horizontal offset for wide content
-	width      int
-	height     int
-	maxLines   int
-	maxWidth   int
-	finished   bool
+	title    string
+	content  string
+	lines    []string
+	viewport int
+	offset   int
+	hoffset  int // horizontal offset for wide content
+	width    int
+	height   int
+	maxLines int
+	maxWidth int
+	finished bool
 }
 
 // NewViewer creates a new scrollable text viewer
 func NewViewer(title, content string) *Viewer {
 	lines := strings.Split(content, "\n")
-	
+
 	// Calculate maximum line width for horizontal scrolling
 	maxWidth := 0
 	for _, line := range lines {
@@ -38,7 +38,7 @@ func NewViewer(title, content string) *Viewer {
 			maxWidth = len(line)
 		}
 	}
-	
+
 	return &Viewer{
 		title:    title,
 		content:  content,
@@ -188,7 +188,7 @@ func (m *ViewerModel) View() string {
 		}
 		scrollInfo = fmt.Sprintf(" | Lines %d-%d of %d", lineStart, lineEnd, m.viewer.maxLines)
 	}
-	
+
 	// Add horizontal position if content is wider than viewport and calculate content width
 	contentWidth := m.viewer.width - 8
 	if m.viewer.maxWidth > contentWidth {
@@ -214,19 +214,19 @@ func (m *ViewerModel) View() string {
 	}
 	for i := m.viewer.offset; i < end; i++ {
 		line := m.viewer.lines[i]
-		
+
 		// Apply horizontal scrolling
 		if m.viewer.hoffset > 0 && len(line) > m.viewer.hoffset {
 			line = line[m.viewer.hoffset:]
 		} else if m.viewer.hoffset > 0 {
 			line = ""
 		}
-		
+
 		// Truncate line if it's too wide
 		if len(line) > contentWidth {
 			line = line[:contentWidth]
 		}
-		
+
 		contentLines = append(contentLines, line)
 	}
 
@@ -249,7 +249,6 @@ func (m *ViewerModel) View() string {
 
 	return b.String()
 }
-
 
 // ShowContent displays content in a scrollable viewer and waits for user to close it
 func ShowContent(title, content string) error {

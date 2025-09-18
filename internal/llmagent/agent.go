@@ -27,30 +27,30 @@ func NewAgent(provider LLMProvider, tools []Tool) *Agent {
 // ExecuteTask runs the agent to complete a task
 func (a *Agent) ExecuteTask(ctx context.Context, prompt string) (*TaskResult, error) {
 	var conversation []ConversationEntry
-	
+
 	// Add initial prompt
 	conversation = append(conversation, ConversationEntry{
 		Type:    "user",
 		Content: prompt,
 	})
-	
+
 	maxIterations := 10 // Prevent infinite loops
 	for i := 0; i < maxIterations; i++ {
 		// Build the full prompt with conversation history
 		fullPrompt := a.buildPrompt(conversation)
-		
+
 		// Get response from LLM
 		response, err := a.provider.GenerateResponse(ctx, fullPrompt, a.tools)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get LLM response: %w", err)
 		}
-		
+
 		// Add LLM response to conversation
 		conversation = append(conversation, ConversationEntry{
 			Type:    "assistant",
 			Content: response.Content,
 		})
-		
+
 		// If there are tool calls, execute them
 		if len(response.ToolCalls) > 0 {
 			for _, toolCall := range response.ToolCalls {
@@ -83,7 +83,7 @@ func (a *Agent) ExecuteTask(ctx context.Context, prompt string) (*TaskResult, er
 			}, nil
 		}
 	}
-	
+
 	return &TaskResult{
 		Success:      false,
 		FinalContent: "Task did not complete within maximum iterations",
@@ -99,14 +99,14 @@ func (a *Agent) executeTool(ctx context.Context, toolCall ToolCall) (*ToolResult
 			return tool.Handler(ctx, toolCall.Arguments)
 		}
 	}
-	
+
 	return nil, fmt.Errorf("tool not found: %s", toolCall.Name)
 }
 
 // buildPrompt creates the full prompt with conversation history
 func (a *Agent) buildPrompt(conversation []ConversationEntry) string {
 	var builder strings.Builder
-	
+
 	for _, entry := range conversation {
 		switch entry.Type {
 		case "user":
@@ -123,7 +123,7 @@ func (a *Agent) buildPrompt(conversation []ConversationEntry) string {
 			builder.WriteString("\n\n")
 		}
 	}
-	
+
 	return builder.String()
 }
 

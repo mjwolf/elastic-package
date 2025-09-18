@@ -43,12 +43,12 @@ func NewBedrockProvider(config BedrockConfig) *BedrockProvider {
 	if config.Endpoint == "" {
 		config.Endpoint = fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", config.Region)
 	}
-	
+
 	// Debug logging with masked API key for security
-	logger.Debugf("Creating Bedrock provider with model: %s, region: %s, endpoint: %s", 
+	logger.Debugf("Creating Bedrock provider with model: %s, region: %s, endpoint: %s",
 		config.ModelID, config.Region, config.Endpoint)
 	logger.Debugf("API key (masked for security): %s", maskAPIKey(config.APIKey))
-	
+
 	return &BedrockProvider{
 		apiKey:   config.APIKey,
 		region:   config.Region,
@@ -122,16 +122,16 @@ func (b *BedrockProvider) GenerateResponse(ctx context.Context, prompt string, t
 	if err := json.NewDecoder(resp.Body).Decode(&bedrockResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
-	
+
 	// Debug logging for the full response
 	logger.Debugf("Bedrock API response - Content: %s", bedrockResp.Content)
 	logger.Debugf("Bedrock API response - StopReason: %s", bedrockResp.StopReason)
 	logger.Debugf("Bedrock API response - ToolCalls count: %d", len(bedrockResp.ToolCalls))
 	for i, toolCall := range bedrockResp.ToolCalls {
-		logger.Debugf("Bedrock API response - ToolCall[%d]: name=%s, id=%s, input=%s", 
+		logger.Debugf("Bedrock API response - ToolCall[%d]: name=%s, id=%s, input=%s",
 			i, toolCall.Name, toolCall.ID, toolCall.Input)
 	}
-	
+
 	// Convert to our format
 	response := &LLMResponse{
 		Content:   bedrockResp.Content,
@@ -179,4 +179,3 @@ type bedrockToolCall struct {
 	Name  string `json:"name"`
 	Input string `json:"input"`
 }
-

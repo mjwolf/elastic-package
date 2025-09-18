@@ -100,7 +100,7 @@ func listDirectoryHandler(packageRoot string) ToolHandler {
 			if entry.Name() == "docs" {
 				continue
 			}
-			
+
 			if entry.IsDir() {
 				result.WriteString(fmt.Sprintf("  %s/ (directory)\n", entry.Name()))
 			} else {
@@ -177,12 +177,12 @@ func writeFileHandler(packageRoot string) ToolHandler {
 
 		// Create directory if it doesn't exist
 		dir := filepath.Dir(fullPath)
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return &ToolResult{Error: fmt.Sprintf("failed to create directory: %v", err)}, nil
 		}
 
 		// Write the file
-		if err := os.WriteFile(fullPath, []byte(args.Content), 0644); err != nil {
+		if err := os.WriteFile(fullPath, []byte(args.Content), 0o644); err != nil {
 			return &ToolResult{Error: fmt.Sprintf("failed to write file: %v", err)}, nil
 		}
 
