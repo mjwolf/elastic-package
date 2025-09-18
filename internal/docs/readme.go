@@ -269,3 +269,9 @@ func readmePath(fileName, packageRoot string) string {
 func docsPath(packageRoot string) string {
 	return filepath.Join(packageRoot, "docs")
 }
+
+// GenerateReadmePreview generates the processed README content for preview purposes
+// without writing it to disk. This is the same as what generateReadme does internally.
+func GenerateReadmePreview(fileName, packageRoot string) ([]byte, bool, error) {
+	return generateReadme(fileName, packageRoot)
+}
