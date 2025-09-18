@@ -638,6 +638,44 @@ Use this command to uninstall the package in Kibana.
 
 The command uses Kibana API to uninstall the package in Kibana. The package must be exposed via the Package Registry.
 
+### `elastic-package update`
+
+_Context: global_
+
+Use this command to update package resources.
+
+The command can help update various aspects of a package such as documentation, configuration files, and other resources.
+
+### `elastic-package update documentation`
+
+_Context: global_
+
+Use this command to update package documentation using an AI agent or get manual instructions.
+
+The command supports multiple LLM providers and will automatically use the first available provider based on 
+environment variables or profile configuration. It analyzes your package and updates the /_dev/build/docs/README.md file with comprehensive 
+documentation based on the package contents and structure.
+
+Configuration options for LLM providers (environment variables or profile config):
+- BEDROCK_API_KEY / llm.bedrock.api_key: API key for Amazon Bedrock
+- BEDROCK_REGION / llm.bedrock.region: AWS region (defaults to us-east-1)
+- BEDROCK_MODEL / llm.bedrock.model: Model ID (defaults to anthropic.claude-3-5-sonnet-20241022-v2:0)
+- GEMINI_API_KEY / llm.gemini.api_key: API key for Google AI Studio
+- GEMINI_MODEL / llm.gemini.model: Model ID (defaults to gemini-2.5-pro)
+- LOCAL_LLM_ENDPOINT / llm.local.endpoint: Endpoint for local LLM server
+- LOCAL_LLM_MODEL / llm.local.model: Model name for local LLM (defaults to llama2)
+- LOCAL_LLM_API_KEY / llm.local.api_key: API key for local LLM (optional)
+
+Profile configuration file: ~/.elastic-package/profiles/<profile>/config.yml
+
+The AI agent will:
+1. Analyze your package structure, data streams, and configuration
+2. Generate comprehensive documentation following Elastic's templates
+3. Allow you to review and request changes interactively (or automatically accept in non-interactive mode)
+4. Create or update the README.md file in /_dev/build/docs/
+
+Use --non-interactive to skip all prompts and automatically accept the first result from the LLM.
+
 ### `elastic-package version`
 
 _Context: global_
@@ -689,6 +727,36 @@ The following settings are available per profile:
 * `stack.elastic_subscription` allows to select the Elastic subscription type to be used in the stack.
   Currently, it is supported "basic" and "[trial](https://www.elastic.co/guide/en/elasticsearch/reference/current/start-trial.html)",
   which enables all subscription features for 30 days.  Defaults to "trial".
+
+### AI-powered Documentation Configuration
+
+The `elastic-package update documentation` command supports AI-powered documentation generation using various LLM providers. You can configure these providers through profile settings as an alternative to environment variables:
+
+* `llm.bedrock.api_key`: API key for Amazon Bedrock LLM services
+* `llm.bedrock.region`: AWS region for Bedrock services (defaults to `us-east-1`)
+* `llm.bedrock.model`: Bedrock model ID (defaults to `anthropic.claude-3-5-sonnet-20241022-v2:0`)
+* `llm.gemini.api_key`: API key for Google AI Studio (Gemini) LLM services  
+* `llm.gemini.model`: Gemini model ID (defaults to `gemini-2.5-pro`)
+* `llm.local.endpoint`: Endpoint URL for local OpenAI-compatible LLM servers (required for local LLM)
+* `llm.local.model`: Model name for local LLM servers (defaults to `llama2`)
+* `llm.local.api_key`: API key for local LLM servers (optional, if authentication is required)
+
+**Configuration Priority:** Environment variables take precedence over profile configuration, which takes precedence over default values.
+
+**Usage Examples:**
+
+```bash
+# Use AI agent to update documentation
+elastic-package update documentation
+
+# Use specific profile with LLM configuration
+elastic-package update documentation --profile production
+
+# Run non-interactively (skip confirmation prompt)
+elastic-package update documentation --non-interactive
+```
+
+The AI agent will analyze your package structure, data streams, and configuration to generate comprehensive documentation following Elastic's templates. It provides an interactive process where you can review and request changes before finalizing the documentation.
 
 ## Useful environment variables
 
@@ -746,6 +814,16 @@ There are available some environment variables that could be used to change some
     - `ELASTIC_PACKAGE_ESMETRICSTORE_USERNAME`: Username to connect to elasticsearch (e.g. elastic)
     - `ELASTIC_PACKAGE_ESMETRICSTORE_PASSWORD`: Password for the user.
     - `ELASTIC_PACKAGE_ESMETRICSTORE_CA_CERT`: Path to the CA certificate to connect to the Elastic stack services.
+
+- To configure LLM providers for AI-powered documentation generation (`elastic-package update documentation`):
+    - `BEDROCK_API_KEY`: API key for Amazon Bedrock LLM services
+    - `BEDROCK_REGION`: AWS region for Bedrock services (defaults to `us-east-1`)
+    - `BEDROCK_MODEL`: Bedrock model ID (defaults to `anthropic.claude-3-5-sonnet-20241022-v2:0`)
+    - `GEMINI_API_KEY`: API key for Google AI Studio (Gemini) LLM services
+    - `GEMINI_MODEL`: Gemini model ID (defaults to `gemini-2.5-pro`)
+    - `LOCAL_LLM_ENDPOINT`: Endpoint URL for local OpenAI-compatible LLM servers (e.g., Ollama, LocalAI)
+    - `LOCAL_LLM_MODEL`: Model name for local LLM servers (defaults to `llama2`)
+    - `LOCAL_LLM_API_KEY`: API key for local LLM servers (optional, if authentication is required)
 
 
 ## Release process
