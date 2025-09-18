@@ -14,25 +14,37 @@ import (
 
 // Viewer represents a scrollable text viewer
 type Viewer struct {
-	title       string
-	content     string
-	lines       []string
-	viewport    int
-	offset      int
-	width       int
-	height      int
-	maxLines    int
-	finished    bool
+	title      string
+	content    string
+	lines      []string
+	viewport   int
+	offset     int
+	hoffset    int // horizontal offset for wide content
+	width      int
+	height     int
+	maxLines   int
+	maxWidth   int
+	finished   bool
 }
 
 // NewViewer creates a new scrollable text viewer
 func NewViewer(title, content string) *Viewer {
 	lines := strings.Split(content, "\n")
+	
+	// Calculate maximum line width for horizontal scrolling
+	maxWidth := 0
+	for _, line := range lines {
+		if len(line) > maxWidth {
+			maxWidth = len(line)
+		}
+	}
+	
 	return &Viewer{
 		title:    title,
 		content:  content,
 		lines:    lines,
 		maxLines: len(lines),
+		maxWidth: maxWidth,
 		width:    80,
 		height:   20,
 		viewport: 15, // Leave space for header and footer
@@ -66,6 +78,7 @@ func (m *ViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewer.finished = true
 			return m, tea.Quit
 
+		// Single line navigation
 		case "up", "k":
 			if m.viewer.offset > 0 {
 				m.viewer.offset--
@@ -80,13 +93,14 @@ func (m *ViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewer.offset++
 			}
 
-		case "pgup":
+		// Full page navigation (vim/less style)
+		case "pgup", "ctrl+b", "b":
 			m.viewer.offset -= m.viewer.viewport
 			if m.viewer.offset < 0 {
 				m.viewer.offset = 0
 			}
 
-		case "pgdown":
+		case "pgdown", "ctrl+f", "f", " ":
 			maxOffset := m.viewer.maxLines - m.viewer.viewport
 			if maxOffset < 0 {
 				maxOffset = 0
@@ -96,6 +110,48 @@ func (m *ViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewer.offset = maxOffset
 			}
 
+		// Half page navigation
+		case "ctrl+d", "d":
+			halfPage := m.viewer.viewport / 2
+			if halfPage < 1 {
+				halfPage = 1
+			}
+			maxOffset := m.viewer.maxLines - m.viewer.viewport
+			if maxOffset < 0 {
+				maxOffset = 0
+			}
+			m.viewer.offset += halfPage
+			if m.viewer.offset > maxOffset {
+				m.viewer.offset = maxOffset
+			}
+
+		case "ctrl+u", "u":
+			halfPage := m.viewer.viewport / 2
+			if halfPage < 1 {
+				halfPage = 1
+			}
+			m.viewer.offset -= halfPage
+			if m.viewer.offset < 0 {
+				m.viewer.offset = 0
+			}
+
+		// Horizontal navigation
+		case "left", "h":
+			if m.viewer.hoffset > 0 {
+				m.viewer.hoffset--
+			}
+
+		case "right", "l":
+			contentWidth := m.viewer.width - 8 // Account for border and padding
+			maxHOffset := m.viewer.maxWidth - contentWidth
+			if maxHOffset < 0 {
+				maxHOffset = 0
+			}
+			if m.viewer.hoffset < maxHOffset {
+				m.viewer.hoffset++
+			}
+
+		// Top/bottom navigation
 		case "home", "g":
 			m.viewer.offset = 0
 
@@ -132,6 +188,13 @@ func (m *ViewerModel) View() string {
 		}
 		scrollInfo = fmt.Sprintf(" | Lines %d-%d of %d", lineStart, lineEnd, m.viewer.maxLines)
 	}
+	
+	// Add horizontal position if content is wider than viewport and calculate content width
+	contentWidth := m.viewer.width - 8
+	if m.viewer.maxWidth > contentWidth {
+		hPos := m.viewer.hoffset + 1
+		scrollInfo += fmt.Sprintf(" | Col %d", hPos)
+	}
 
 	title := m.viewer.title + scrollInfo
 	b.WriteString(headerStyle.Render(title))
@@ -149,9 +212,22 @@ func (m *ViewerModel) View() string {
 	if end > m.viewer.maxLines {
 		end = m.viewer.maxLines
 	}
-
 	for i := m.viewer.offset; i < end; i++ {
-		contentLines = append(contentLines, m.viewer.lines[i])
+		line := m.viewer.lines[i]
+		
+		// Apply horizontal scrolling
+		if m.viewer.hoffset > 0 && len(line) > m.viewer.hoffset {
+			line = line[m.viewer.hoffset:]
+		} else if m.viewer.hoffset > 0 {
+			line = ""
+		}
+		
+		// Truncate line if it's too wide
+		if len(line) > contentWidth {
+			line = line[:contentWidth]
+		}
+		
+		contentLines = append(contentLines, line)
 	}
 
 	// Pad with empty lines if needed
@@ -168,7 +244,7 @@ func (m *ViewerModel) View() string {
 		Foreground(lipgloss.Color("241")).
 		Italic(true)
 
-	instructions := "↑↓/jk: scroll | PgUp/PgDn: page | Home/End: top/bottom | Enter/q/Esc: close"
+	instructions := "↑↓/jk: line | ←→/hl: scroll | PgUp/PgDn/Ctrl+B/Ctrl+F/b/f/Space: page | d/u: half page | Home/End/g/G: top/bottom | Enter/q/Esc: close"
 	b.WriteString(instructionsStyle.Render(instructions))
 
 	return b.String()
