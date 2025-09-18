@@ -26,6 +26,11 @@ func NewAgent(provider LLMProvider, tools []Tool) *Agent {
 
 // ExecuteTask runs the agent to complete a task
 func (a *Agent) ExecuteTask(ctx context.Context, prompt string) (*TaskResult, error) {
+	return a.ExecuteTaskWithAnimation(ctx, prompt, nil)
+}
+
+// ExecuteTaskWithAnimation runs the agent to complete a task with optional animation
+func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, animation *AnimatedStatus) (*TaskResult, error) {
 	var conversation []ConversationEntry
 
 	// Add initial prompt
@@ -43,6 +48,11 @@ func (a *Agent) ExecuteTask(ctx context.Context, prompt string) (*TaskResult, er
 		// Build the full prompt with conversation history
 		fullPrompt := a.buildPrompt(conversation)
 
+		// Update animation to show LLM is thinking
+		if animation != nil {
+			animation.Update("LLM is thinking...")
+		}
+		
 		// Get response from LLM
 		response, err := a.provider.GenerateResponse(ctx, fullPrompt, a.tools)
 		if err != nil {
@@ -54,6 +64,11 @@ func (a *Agent) ExecuteTask(ctx context.Context, prompt string) (*TaskResult, er
 			Type:    "assistant",
 			Content: response.Content,
 		})
+		
+		// Update animation to show response received
+		if animation != nil {
+			animation.Flash()
+		}
 
 		// If there are tool calls, execute them
 		if len(response.ToolCalls) > 0 {

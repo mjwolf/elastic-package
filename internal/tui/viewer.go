@@ -173,10 +173,13 @@ func (m *ViewerModel) View() string {
 	// Header with title and scroll position
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("86")).
-		BorderStyle(lipgloss.NormalBorder()).
+		Foreground(lipgloss.Color("15")).  // Bright white text
+		Background(lipgloss.Color("27")).  // Blue background
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("86")).
 		BorderBottom(true).
-		Width(m.viewer.width).
+		Width(m.viewer.width - 2).  // Account for border
+		Padding(0, 1).              // Add horizontal padding
 		Align(lipgloss.Center)
 
 	scrollInfo := ""
@@ -196,8 +199,18 @@ func (m *ViewerModel) View() string {
 		scrollInfo += fmt.Sprintf(" | Col %d", hPos)
 	}
 
-	title := m.viewer.title + scrollInfo
-	b.WriteString(headerStyle.Render(title))
+	// Separate title from scroll info for better formatting
+	titleText := m.viewer.title
+	if scrollInfo != "" {
+		titleText = fmt.Sprintf("%s %s", m.viewer.title, scrollInfo)
+	}
+	
+	// Ensure title is not empty
+	if titleText == "" {
+		titleText = "Content Viewer"
+	}
+	
+	b.WriteString(headerStyle.Render(titleText))
 	b.WriteString("\n\n")
 
 	// Content area
