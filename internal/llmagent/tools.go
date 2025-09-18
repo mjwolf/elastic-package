@@ -96,6 +96,11 @@ func listDirectoryHandler(packageRoot string) ToolHandler {
 		result.WriteString(fmt.Sprintf("Contents of %s:\n", args.Path))
 
 		for _, entry := range entries {
+			// Hide docs/ directory from LLM - it contains generated artifacts
+			if entry.Name() == "docs" {
+				continue
+			}
+			
 			if entry.IsDir() {
 				result.WriteString(fmt.Sprintf("  %s/ (directory)\n", entry.Name()))
 			} else {
