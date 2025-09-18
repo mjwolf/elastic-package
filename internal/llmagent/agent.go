@@ -52,7 +52,7 @@ func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, ani
 		if animation != nil {
 			animation.Update("LLM is thinking...")
 		}
-		
+
 		// Get response from LLM
 		response, err := a.provider.GenerateResponse(ctx, fullPrompt, a.tools)
 		if err != nil {
@@ -76,8 +76,8 @@ func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, ani
 			if animation != nil {
 				animation.Update("Executing tools...")
 			}
-			
-			for _, toolCall := range response.ToolCalls {				
+
+			for _, toolCall := range response.ToolCalls {
 				result, err := a.executeTool(ctx, toolCall)
 				if err != nil {
 					conversation = append(conversation, ConversationEntry{

@@ -46,8 +46,8 @@ func NewViewer(title, content string) *Viewer {
 		maxLines: len(lines),
 		maxWidth: maxWidth,
 		width:    80,
-		height:   20,
-		viewport: 15, // Leave space for header and footer
+		height:   24,  // Increased default height
+		viewport: 18,  // Leave space for header and footer
 	}
 }
 
@@ -61,7 +61,8 @@ func NewViewerModel(viewer *Viewer) *ViewerModel {
 }
 
 func (m *ViewerModel) Init() tea.Cmd {
-	return nil
+	// Request initial window size
+	return tea.EnterAltScreen
 }
 
 func (m *ViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -69,7 +70,11 @@ func (m *ViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.viewer.width = msg.Width
 		m.viewer.height = msg.Height
-		m.viewer.viewport = msg.Height - 6 // Leave space for header, footer, and instructions
+		// Leave more space for header (title), content borders, footer, and instructions
+		m.viewer.viewport = msg.Height - 8
+		if m.viewer.viewport < 1 {
+			m.viewer.viewport = 1
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -178,8 +183,9 @@ func (m *ViewerModel) View() string {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("86")).
 		BorderBottom(true).
-		Width(m.viewer.width - 2).  // Account for border
-		Padding(0, 1).              // Add horizontal padding
+		Width(m.viewer.width - 4).  // Account for border and padding
+		MarginBottom(1).            // Add space after header
+		Padding(0, 2).              // Add horizontal padding
 		Align(lipgloss.Center)
 
 	scrollInfo := ""
@@ -202,7 +208,7 @@ func (m *ViewerModel) View() string {
 	// Separate title from scroll info for better formatting
 	titleText := m.viewer.title
 	if scrollInfo != "" {
-		titleText = fmt.Sprintf("%s %s", m.viewer.title, scrollInfo)
+		titleText = fmt.Sprintf("%s%s", m.viewer.title, scrollInfo)
 	}
 	
 	// Ensure title is not empty
@@ -210,8 +216,13 @@ func (m *ViewerModel) View() string {
 		titleText = "Content Viewer"
 	}
 	
+	// Debug: ensure we always have a visible title
+	if strings.TrimSpace(titleText) == "" {
+		titleText = "📄 Document Viewer"
+	}
+	
 	b.WriteString(headerStyle.Render(titleText))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
 
 	// Content area
 	contentStyle := lipgloss.NewStyle().
@@ -267,7 +278,9 @@ func (m *ViewerModel) View() string {
 func ShowContent(title, content string) error {
 	viewer := NewViewer(title, content)
 	model := NewViewerModel(viewer)
-	program := tea.NewProgram(model)
+	
+	// Enable mouse support and alternate screen for better display
+	program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	_, err := program.Run()
 	if err != nil {

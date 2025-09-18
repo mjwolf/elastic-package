@@ -18,8 +18,8 @@ type AnimatedStatus struct {
 	stopCh      chan bool
 	frames      []string
 	frameIndex  int
-	sparkleEnd  time.Time  // When the sparkle effect should end
-	showSparkle bool       // Whether to show sparkle
+	sparkleEnd  time.Time // When the sparkle effect should end
+	showSparkle bool      // Whether to show sparkle
 }
 
 // NewAnimatedStatus creates a new animated status display
