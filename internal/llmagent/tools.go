@@ -128,8 +128,8 @@ func readFileHandler(packageRoot string) ToolHandler {
 			return &ToolResult{Error: fmt.Sprintf("failed to parse arguments: %v", err)}, nil
 		}
 
-		// Block access to generated artifacts in docs/ directory
-		if strings.HasPrefix(args.Path, "docs/") || strings.Contains(args.Path, "/docs/") {
+		// Block access to generated artifacts in docs/ directory (but not _dev/build/docs/)
+		if strings.HasPrefix(args.Path, "docs/") || args.Path == "docs" {
 			return &ToolResult{Error: "access denied: invalid path"}, nil
 		}
 
@@ -162,8 +162,8 @@ func writeFileHandler(packageRoot string) ToolHandler {
 			return &ToolResult{Error: fmt.Sprintf("failed to parse arguments: %v", err)}, nil
 		}
 
-		// Block writing to generated artifacts in docs/ directory
-		if strings.HasPrefix(args.Path, "docs/") || strings.Contains(args.Path, "/docs/") {
+		// Block writing to generated artifacts in docs/ directory (but not _dev/build/docs/)
+		if strings.HasPrefix(args.Path, "docs/") || args.Path == "docs" {
 			return &ToolResult{Error: "access denied: invalid path"}, nil
 		}
 
