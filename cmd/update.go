@@ -5,9 +5,12 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/elastic/elastic-package/internal/cobraext"
+	"github.com/elastic/elastic-package/internal/install"
 )
 
 const updateLongDescription = `Use this command to update package resources.
@@ -30,6 +33,7 @@ func setupUpdateCommand() *cobraext.Command {
 		Long:  updateLongDescription,
 	}
 	cmd.AddCommand(updateDocumentationCmd)
+	cmd.PersistentFlags().StringP(cobraext.ProfileFlagName, "p", "", fmt.Sprintf(cobraext.ProfileFlagDescription, install.ProfileNameEnvVar))
 
 	return cobraext.NewCommand(cmd, cobraext.ContextGlobal)
 }

@@ -13,21 +13,29 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/elastic/elastic-package/internal/cobraext"
 	"github.com/elastic/elastic-package/internal/llmagent"
 	"github.com/elastic/elastic-package/internal/packages"
+	"github.com/elastic/elastic-package/internal/profile"
 )
 
 const updateDocumentationLongDescription = `Use this command to update package documentation using an AI agent or get manual instructions.
 
 The command supports multiple LLM providers and will automatically use the first available provider based on 
-environment variables. It analyzes your package and updates the /_dev/build/docs/README.md file with comprehensive 
+environment variables or profile configuration. It analyzes your package and updates the /_dev/build/docs/README.md file with comprehensive 
 documentation based on the package contents and structure.
 
-Environment variables for LLM providers (pick one):
-- BEDROCK_API_KEY: API key for Amazon Bedrock
-- BEDROCK_REGION: AWS region (defaults to us-east-1)
-- GEMINI_API_KEY: API key for Google AI Studio
-- GEMINI_MODEL: Model ID (defaults to gemini-2.5-pro)
+Configuration options for LLM providers (environment variables or profile config):
+- BEDROCK_API_KEY / llm.bedrock.api_key: API key for Amazon Bedrock
+- BEDROCK_REGION / llm.bedrock.region: AWS region (defaults to us-east-1)
+- BEDROCK_MODEL / llm.bedrock.model: Model ID (defaults to anthropic.claude-3-5-sonnet-20241022-v2:0)
+- GEMINI_API_KEY / llm.gemini.api_key: API key for Google AI Studio
+- GEMINI_MODEL / llm.gemini.model: Model ID (defaults to gemini-2.5-pro)
+- LOCAL_LLM_ENDPOINT / llm.local.endpoint: Endpoint for local LLM server
+- LOCAL_LLM_MODEL / llm.local.model: Model name for local LLM (defaults to llama2)
+- LOCAL_LLM_API_KEY / llm.local.api_key: API key for local LLM (optional)
+
+Profile configuration file: ~/.elastic-package/profiles/<profile>/config.yml
 
 The AI agent will:
 1. Analyze your package structure, data streams, and configuration
@@ -39,6 +47,21 @@ Use --non-interactive to skip all prompts and automatically accept the first res
 
 type updateDocumentationAnswers struct {
 	Confirm bool
+}
+
+// getConfigValue retrieves a configuration value with fallback from environment variable to profile config
+func getConfigValue(profile *profile.Profile, envVar, configKey, defaultValue string) string {
+	// First check environment variable
+	if envValue := os.Getenv(envVar); envValue != "" {
+		return envValue
+	}
+
+	// Then check profile configuration
+	if profile != nil {
+		return profile.Config(configKey, defaultValue)
+	}
+
+	return defaultValue
 }
 
 func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
@@ -60,11 +83,18 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get non-interactive flag: %w", err)
 	}
 
-	// Check for API key availability for different providers
-	bedrockAPIKey := os.Getenv("BEDROCK_API_KEY")
-	googleAPIKey := os.Getenv("GEMINI_API_KEY")
+	// Get profile for configuration access
+	profile, err := cobraext.GetProfileFlag(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to get profile: %w", err)
+	}
 
-	if bedrockAPIKey == "" && googleAPIKey == "" {
+	// Check for API key availability for different providers (environment variables take precedence over profile config)
+	bedrockAPIKey := getConfigValue(profile, "BEDROCK_API_KEY", "llm.bedrock.api_key", "")
+	googleAPIKey := getConfigValue(profile, "GEMINI_API_KEY", "llm.gemini.api_key", "")
+	localEndpoint := getConfigValue(profile, "LOCAL_LLM_ENDPOINT", "llm.local.endpoint", "")
+
+	if bedrockAPIKey == "" && googleAPIKey == "" && localEndpoint == "" {
 		// Use colors to highlight the manual instructions
 		yellow := color.New(color.FgYellow)
 		cyan := color.New(color.FgCyan)
@@ -76,9 +106,12 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		green.Println("  1. Edit `_dev/build/docs/README.md`")
 		green.Println("  2. Run `elastic-package build`")
 		cmd.Println()
-		cyan.Println("For AI-powered documentation updates, set one of these environment variables:")
-		green.Println("  - BEDROCK_API_KEY (for Amazon Bedrock)")
-		green.Println("  - GEMINI_API_KEY (for Google AI Studio)")
+		cyan.Println("For AI-powered documentation updates, configure one of these LLM providers:")
+		green.Println("  - Amazon Bedrock: Set BEDROCK_API_KEY or add llm.bedrock.api_key to profile config")
+		green.Println("  - Google AI Studio: Set GEMINI_API_KEY or add llm.gemini.api_key to profile config")
+		green.Println("  - Local LLM: Set LOCAL_LLM_ENDPOINT or add llm.local.endpoint to profile config")
+		cmd.Println()
+		cyan.Println("Profile configuration: ~/.elastic-package/profiles/<profile>/config.yml")
 		return nil
 	}
 
@@ -110,28 +143,33 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		cmd.Println("Running in non-interactive mode - proceeding automatically.")
 	}
 
-	// Create the LLM provider based on available API keys
+	// Create the LLM provider based on available API keys/endpoints
 	var provider llmagent.LLMProvider
 	if bedrockAPIKey != "" {
-		region := os.Getenv("BEDROCK_REGION")
-		if region == "" {
-			region = "us-east-1" // Default region
-		}
+		region := getConfigValue(profile, "BEDROCK_REGION", "llm.bedrock.region", "us-east-1")
+		modelID := getConfigValue(profile, "BEDROCK_MODEL", "llm.bedrock.model", "anthropic.claude-3-5-sonnet-20241022-v2:0")
 		provider = llmagent.NewBedrockProvider(llmagent.BedrockConfig{
-			APIKey: bedrockAPIKey,
-			Region: region,
+			APIKey:  bedrockAPIKey,
+			Region:  region,
+			ModelID: modelID,
 		})
-		cmd.Printf("Using Amazon Bedrock provider with region: %s\n", region)
+		cmd.Printf("Using Amazon Bedrock provider with region: %s, model: %s\n", region, modelID)
 	} else if googleAPIKey != "" {
-		modelID := os.Getenv("GEMINI_MODEL")
-		if modelID == "" {
-			modelID = "gemini-2.5-pro" // Default model
-		}
+		modelID := getConfigValue(profile, "GEMINI_MODEL", "llm.gemini.model", "gemini-2.5-pro")
 		provider = llmagent.NewGoogleAIStudioProvider(llmagent.GoogleAIStudioConfig{
 			APIKey:  googleAPIKey,
 			ModelID: modelID,
 		})
 		cmd.Printf("Using Google AI Studio provider with model: %s\n", modelID)
+	} else if localEndpoint != "" {
+		modelID := getConfigValue(profile, "LOCAL_LLM_MODEL", "llm.local.model", "llama2")
+		localAPIKey := getConfigValue(profile, "LOCAL_LLM_API_KEY", "llm.local.api_key", "")
+		provider = llmagent.NewLocalProvider(llmagent.LocalConfig{
+			Endpoint: localEndpoint,
+			ModelID:  modelID,
+			APIKey:   localAPIKey,
+		})
+		cmd.Printf("Using Local LLM provider with endpoint: %s, model: %s\n", localEndpoint, modelID)
 	}
 
 	// Create the documentation agent

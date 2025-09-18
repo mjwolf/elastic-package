@@ -30,6 +30,13 @@ Implementation for Google AI Studio:
 - Uses Google's Generative Language API
 - Requires API key authentication
 
+### Local LLM Provider (`local.go`)
+Implementation for local LLM servers:
+- Supports OpenAI-compatible local servers (Ollama, LocalAI, etc.)
+- Configurable endpoint (default: `http://localhost:11434`)
+- Configurable model name (default: `llama2`)
+- Optional API key support for servers that require authentication
+
 ### Agent (`agent.go`)
 Core agent that:
 - Manages conversation with the LLM
@@ -59,6 +66,40 @@ export BEDROCK_REGION="us-east-1"  # optional
 export GEMINI_API_KEY="your-google-api-key"
 export GEMINI_MODEL="gemini-2.5-pro"  # optional
 ```
+
+#### For Local LLM (Ollama, LocalAI, etc.):
+```bash
+export LOCAL_LLM_ENDPOINT="http://localhost:11434"  # required
+export LOCAL_LLM_MODEL="llama2"  # optional, defaults to llama2
+export LOCAL_LLM_API_KEY="your-api-key"  # optional, for servers requiring auth
+```
+
+### Profile Configuration
+
+As an alternative to environment variables, you can configure LLM providers in your elastic-package profile configuration:
+
+```yaml
+# ~/.elastic-package/profiles/<profile>/config.yml
+
+## Amazon Bedrock
+llm.bedrock.api_key: "your-bedrock-api-key"
+llm.bedrock.region: "us-east-1"  # optional, defaults to us-east-1
+llm.bedrock.model: "anthropic.claude-3-5-sonnet-20241022-v2:0"  # optional
+
+## Google AI Studio (Gemini)
+llm.gemini.api_key: "your-google-api-key"
+llm.gemini.model: "gemini-2.5-pro"  # optional, defaults to gemini-2.5-pro
+
+## Local LLM Provider
+llm.local.endpoint: "http://localhost:11434"  # required for local LLM
+llm.local.model: "llama2"  # optional, defaults to llama2
+llm.local.api_key: "your-api-key"  # optional, for servers requiring auth
+```
+
+**Configuration Priority:**
+1. Environment variables (highest priority)
+2. Profile configuration
+3. Default values (lowest priority)
 
 ### Command
 ```bash
@@ -92,6 +133,15 @@ provider := llmagent.NewBedrockProvider(llmagent.BedrockConfig{
 provider := llmagent.NewGoogleAIStudioProvider(llmagent.GoogleAIStudioConfig{
     APIKey: "your-api-key", 
     ModelID: "gemini-2.5-pro",
+})
+```
+
+#### Local LLM Provider:
+```go
+provider := llmagent.NewLocalProvider(llmagent.LocalConfig{
+    Endpoint: "http://localhost:11434",
+    ModelID: "llama2", 
+    APIKey: "", // Optional
 })
 ```
 
