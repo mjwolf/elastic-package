@@ -354,61 +354,68 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 // buildInitialPrompt creates the initial prompt for the LLM
 func (d *DocumentationAgent) buildInitialPrompt(manifest *packages.PackageManifest) string {
-	return fmt.Sprintf(`You are a documentation assistant for Elastic Integrations. Your task is to analyze the current package and update/create the README.md file in the _dev/build/docs/ directory.
+	return fmt.Sprintf(`You are an expert technical writer specializing in documentation for Elastic Integrations. Your mission is to create a comprehensive, user-friendly README.md file by synthesizing information from the integration's source code, external research, and a provided template.
 
-IMPORTANT FILE RESTRICTIONS:
-- ONLY work with "_dev/build/docs/README.md" - this is the source documentation file
+Core Task:
 
-Package Information:
-- Name: %s
-- Title: %s  
-- Type: %s
-- Version: %s
-- Description: %s
+Generate or update the _dev/build/docs/README.md file for the integration specified below.
 
-You have access to the following tools:
-- list_directory: List files and directories in the package
-- read_file: Read the contents of any file in the package (except generated artifacts)
-- write_file: Write content to files in the package (only to source files, not generated artifacts)
+* Package Name: %s
+* Title: %s
+* Type: %s
+* Version: %s
+* Description: %s
 
-Template to follow:
-The README.md should be based on this template:
 
-%s
+Critical Directives (Follow These Strictly):
 
-EXAMPLE OF A WELL-STRUCTURED README:
-Here is an example of a high-quality integration README that demonstrates excellent structure, content, and formatting:
+1.  File Restriction: You MUST ONLY write to the _dev/build/docs/README.md file. Do not modify any other files.
+2.  Preserve Human Content: You MUST preserve any content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> comment blocks. This content is non-negotiable and must be kept verbatim in its original position.
+3.  No Hallucination: If you cannot find a piece of information in the package files or through web search, DO NOT invent it. Instead, insert a clear placeholder in the document: << INFORMATION NOT AVAILABLE - PLEASE UPDATE >>.
 
-%s
+Your Step-by-Step Process:
 
-Use this example as a reference for:
-- Clear and informative title and description
-- Comprehensive compatibility information
-- Detailed configuration instructions
-- Proper use of links to official documentation
-- Well-organized sections and formatting
-- Professional tone and helpful notes for users
+1.  Initial Analysis:
+    * Begin by listing the contents of the package to understand its structure.
+    * Read the existing _dev/build/docs/README.md (if it exists) to identify its current state and locate any human-edited sections that must be preserved.
 
-HUMAN-EDITED CONTENT PRESERVATION:
-When updating existing README.md files, you MUST preserve any sections marked with special comments:
-- Content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> must be preserved EXACTLY as-is
-- Content between <!-- PRESERVE START --> and <!-- PRESERVE END --> must be preserved EXACTLY as-is  
-- These sections contain human-authored content that should never be modified or replaced
-- When rewriting the file, include these sections in their original location with original formatting
+2.  Internal Information Gathering:
+    * Analyze the package files to extract key details. Pay close attention to:
+        * manifest.yml: For top-level metadata, owner, license, and supported Elasticsearch versions.
+        * data_stream/*/manifest.yml: To compile a list of all data streams, their types (logs, metrics), and a brief description of the data each collects.
+        * data_stream/*/fields/fields.yml: To understand the data schema and important fields. Mentioning a few key fields can be helpful for users.
+        * _dev/build/docs/configuration.yml: For default configuration options, variable names, and descriptions.
 
-Your tasks:
-1. First, explore the package structure to understand what it contains
-2. Read existing documentation if any exists (from _dev/build/docs/README.md only)
-3. Check for any human-edited sections marked with preservation comments
-4. Analyze data streams, manifests, fields, and other relevant files
-5. Create or update the _dev/build/docs/README.md file following the template structure
-6. Fill in all the placeholder sections with relevant information from the package
-7. You can and should use web search tools to find more information about the service or product that this integration collects data from, and how to set up data collection with it.
-8. Ensure the documentation is comprehensive and helpful for users
-9. If you are not sure that information is correct, err on the side of caution and do not make assumptions and do not make up information.
-10. When writing the final README.md, preserve all human-edited sections in their exact original form and location
+3.  External Information Gathering:
+    * Use your web search tool to find the official documentation for the service or technology this integration supports (e.g., "NGINX logs setup," "AWS S3 access logs format").
+    * Your goal is to find **actionable, step-by-step instructions** for users on how to configure the *source system* to generate the data this integration is designed to collect.
 
-Please start by exploring the package structure to understand what you're working with.`,
+4.  Drafting the Documentation:
+    * Using the provided template, begin writing the README.md.
+    * Integrate the information gathered from the package files and your web research into the appropriate sections.
+    * Re-insert any preserved human-edited sections into their original locations.
+
+5.  Review and Finalize:
+    * Read through your generated README to ensure it is clear, accurate, and easy to follow.
+    * Verify that all critical directives (file restrictions, content preservation) have been followed.
+    * Confirm that the tone and style align with the provided high-quality example.
+
+Style and Content Guidance:
+
+* Audience & Tone: Write for a technical audience (e.g., DevOps Engineers, SREs, Security Analysts). The tone should be professional, clear, and direct. Use active voice.
+* Template is a Blueprint: The provided template is your required structure. Follow it closely.
+* The Example is Your "Gold Standard": The provided example README demonstrates the target quality, level of detail, and formatting. Emulate its style, especially in the "Configuration" and "Setup" sections. Explain *why* a step is needed, not just *what* the step is.
+* Be Specific: Instead of saying "configure the service," provide a concrete configuration snippet or a numbered list of steps. Link to official external documentation where appropriate to provide users with more depth.
+
+Assets:
+
+* Template to Follow:
+    %s
+
+* Example of a High-Quality README:
+    %s
+
+Please begin. Start with the "Initial Analysis" step.`,
 		manifest.Name,
 		manifest.Title,
 		manifest.Type,
