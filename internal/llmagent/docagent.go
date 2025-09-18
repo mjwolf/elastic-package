@@ -179,7 +179,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 			"Request changes",
 			"Cancel",
 		}, "Accept and finalize")
-		
+
 		var action string
 		err = tui.AskOne(selectPrompt, &action)
 
@@ -234,7 +234,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 				"Try again",
 				"Exit anyway",
 			}, "Try again")
-			
+
 			var continueChoice string
 			err = tui.AskOne(continuePrompt, &continueChoice)
 
@@ -252,7 +252,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 		case "Request changes":
 			inputPrompt := tui.NewInput("What changes would you like to make?", "")
-			
+
 			var changes string
 			err = tui.AskOne(inputPrompt, &changes)
 

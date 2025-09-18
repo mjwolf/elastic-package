@@ -45,7 +45,6 @@ The AI agent will:
 
 Use --non-interactive to skip all prompts and automatically accept the first result from the LLM.`
 
-
 // getConfigValue retrieves a configuration value with fallback from environment variable to profile config
 func getConfigValue(profile *profile.Profile, envVar, configKey, defaultValue string) string {
 	// First check environment variable
@@ -116,7 +115,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	if !nonInteractive {
 		// Prompt user for confirmation
 		confirmPrompt := tui.NewConfirm("Do you want to update the documentation using the AI agent?", false)
-		
+
 		var confirm bool
 		err = tui.AskOne(confirmPrompt, &confirm, tui.Required)
 		if err != nil {
