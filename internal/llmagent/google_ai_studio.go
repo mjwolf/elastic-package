@@ -155,6 +155,31 @@ func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt st
 	if len(googleResp.Candidates) > 0 {
 		candidate := googleResp.Candidates[0]
 
+		// Handle different finish reasons
+		switch candidate.FinishReason {
+		case "STOP":
+			response.Finished = true
+		case "MALFORMED_FUNCTION_CALL":
+			logger.Debugf("Google AI API returned malformed function call - treating as error")
+			response.Finished = true
+			response.Content = "I encountered an error while trying to call a function. Let me try a different approach."
+		case "MAX_TOKENS":
+			logger.Debugf("Google AI API hit max tokens limit")
+			response.Finished = true
+			response.Content = "I reached the maximum response length. Please try breaking this into smaller tasks."
+		case "SAFETY":
+			logger.Debugf("Google AI API response filtered by safety policies")
+			response.Finished = true
+			response.Content = "My response was filtered due to safety policies. Please rephrase your request."
+		case "RECITATION":
+			logger.Debugf("Google AI API response filtered due to recitation")
+			response.Finished = true
+			response.Content = "My response was filtered due to potential copyright issues. Please rephrase your request."
+		default:
+			logger.Debugf("Google AI API returned unexpected finish reason: %s", candidate.FinishReason)
+			// Don't mark as finished for unknown reasons, let the agent continue
+		}
+
 		// Extract text content and tool calls from parts
 		var textParts []string
 		for _, part := range candidate.Content.Parts {
@@ -177,13 +202,10 @@ func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt st
 			}
 		}
 
-		// Join all text parts
-		if len(textParts) > 0 {
+		// Join all text parts (only override if we don't have error content from finish reason)
+		if len(textParts) > 0 && response.Content == "" {
 			response.Content = textParts[0] // For simplicity, take the first text part
 		}
-
-		// Check if finished
-		response.Finished = candidate.FinishReason == "STOP"
 	}
 
 	return response, nil

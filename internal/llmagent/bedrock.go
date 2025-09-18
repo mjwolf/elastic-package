@@ -180,15 +180,3 @@ type bedrockToolCall struct {
 	Input string `json:"input"`
 }
 
-// maskAPIKey masks an API key for secure logging, showing first 8 and last 4 characters
-func maskAPIKey(apiKey string) string {
-	if len(apiKey) <= 12 {
-		// For short keys, mask most of it
-		if len(apiKey) <= 4 {
-			return "****"
-		}
-		return apiKey[:2] + "****" + apiKey[len(apiKey)-2:]
-	}
-	// For longer keys, show first 8 and last 4 characters
-	return apiKey[:8] + "****" + apiKey[len(apiKey)-4:]
-}
