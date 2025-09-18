@@ -160,16 +160,23 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		fmt.Println(result.FinalContent)
 		fmt.Println(strings.Repeat("-", 50))
 
-		// Check if README.md was created/updated and always show full content before prompting
+		// Check if README.md was created/updated and show content in scrollable viewer
 		readmeExists := d.checkReadmeExists()
 		if readmeExists {
 			content, err := d.readCurrentReadme()
 			if err == nil && content != "" {
-				fmt.Println("\n📄 Current README.md content (_dev/build/docs/README.md):")
-				fmt.Println(strings.Repeat("=", 70))
-				fmt.Println(content)
-				fmt.Println(strings.Repeat("=", 70))
-				fmt.Printf("📊 File stats: %d characters, %d lines\n", len(content), strings.Count(content, "\n")+1)
+				fmt.Printf("\n📊 README.md stats: %d characters, %d lines\n", len(content), strings.Count(content, "\n")+1)
+				fmt.Println("📄 Press any key to view the generated README content...")
+				
+				// Show content in scrollable viewer
+				title := "📄 Generated README.md (_dev/build/docs/README.md)"
+				if err := tui.ShowContent(title, content); err != nil {
+					// Fallback to simple print if viewer fails
+					fmt.Println("\n📄 Current README.md content (_dev/build/docs/README.md):")
+					fmt.Println(strings.Repeat("=", 70))
+					fmt.Println(content)
+					fmt.Println(strings.Repeat("=", 70))
+				}
 			} else {
 				fmt.Println("\n⚠️  README.md file exists but could not be read or is empty")
 			}
