@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/elastic/elastic-package/internal/llmagent"
 	"github.com/elastic/elastic-package/internal/packages"
 	"github.com/elastic/elastic-package/internal/profile"
+	"github.com/elastic/elastic-package/internal/tui"
 )
 
 const updateDocumentationLongDescription = `Use this command to update package documentation using an AI agent or get manual instructions.
@@ -45,9 +45,6 @@ The AI agent will:
 
 Use --non-interactive to skip all prompts and automatically accept the first result from the LLM.`
 
-type updateDocumentationAnswers struct {
-	Confirm bool
-}
 
 // getConfigValue retrieves a configuration value with fallback from environment variable to profile config
 func getConfigValue(profile *profile.Profile, envVar, configKey, defaultValue string) string {
@@ -118,24 +115,15 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	// Skip confirmation prompt in non-interactive mode
 	if !nonInteractive {
 		// Prompt user for confirmation
-		qs := []*survey.Question{
-			{
-				Name: "confirm",
-				Prompt: &survey.Confirm{
-					Message: "Do you want to update the documentation using the AI agent",
-					Default: false,
-				},
-				Validate: survey.Required,
-			},
-		}
-
-		var answers updateDocumentationAnswers
-		err = survey.Ask(qs, &answers)
+		confirmPrompt := tui.NewConfirm("Do you want to update the documentation using the AI agent?", false)
+		
+		var confirm bool
+		err = tui.AskOne(confirmPrompt, &confirm, tui.Required)
 		if err != nil {
 			return fmt.Errorf("prompt failed: %w", err)
 		}
 
-		if !answers.Confirm {
+		if !confirm {
 			cmd.Println("Documentation update cancelled.")
 			return nil
 		}

@@ -11,11 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
-
 	"github.com/elastic/elastic-package/internal/logger"
 	"github.com/elastic/elastic-package/internal/packages"
 	"github.com/elastic/elastic-package/internal/packages/archetype"
+	"github.com/elastic/elastic-package/internal/tui"
 )
 
 // DocumentationAgent handles documentation updates for packages
@@ -175,16 +174,14 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		}
 
 		// Ask user what to do next
+		selectPrompt := tui.NewSelect("What would you like to do?", []string{
+			"Accept and finalize",
+			"Request changes",
+			"Cancel",
+		}, "Accept and finalize")
+		
 		var action string
-		err = survey.AskOne(&survey.Select{
-			Message: "What would you like to do?",
-			Options: []string{
-				"Accept and finalize",
-				"Request changes",
-				"Cancel",
-			},
-			Default: "Accept and finalize",
-		}, &action)
+		err = tui.AskOne(selectPrompt, &action)
 
 		if err != nil {
 			return fmt.Errorf("prompt failed: %w", err)
@@ -233,15 +230,13 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 			// No content found in response and no file exists
 			// Ask user if they want to continue or exit anyway
+			continuePrompt := tui.NewSelect("No README.md file was created. What would you like to do?", []string{
+				"Try again",
+				"Exit anyway",
+			}, "Try again")
+			
 			var continueChoice string
-			err = survey.AskOne(&survey.Select{
-				Message: "No README.md file was created. What would you like to do?",
-				Options: []string{
-					"Try again",
-					"Exit anyway",
-				},
-				Default: "Try again",
-			}, &continueChoice)
+			err = tui.AskOne(continuePrompt, &continueChoice)
 
 			if err != nil {
 				return fmt.Errorf("prompt failed: %w", err)
@@ -256,10 +251,10 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 			prompt = "You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis."
 
 		case "Request changes":
+			inputPrompt := tui.NewInput("What changes would you like to make?", "")
+			
 			var changes string
-			err = survey.AskOne(&survey.Multiline{
-				Message: "What changes would you like to make?",
-			}, &changes)
+			err = tui.AskOne(inputPrompt, &changes)
 
 			if err != nil {
 				return fmt.Errorf("prompt failed: %w", err)
