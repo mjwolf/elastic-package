@@ -87,6 +87,13 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		fmt.Println(result.FinalContent)
 		fmt.Println(strings.Repeat("-", 50))
 
+		// Check if the response indicates an error occurred
+		if isErrorResponse(result.FinalContent) {
+			fmt.Println("\n❌ Error detected in LLM response.")
+			fmt.Println("In non-interactive mode, exiting due to error.")
+			return fmt.Errorf("LLM agent encountered an error: %s", result.FinalContent)
+		}
+
 		// Check if README.md was created/updated
 		readmeExists := d.checkReadmeExists()
 		if readmeExists {
@@ -160,6 +167,32 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		fmt.Println(strings.Repeat("-", 50))
 		fmt.Println(result.FinalContent)
 		fmt.Println(strings.Repeat("-", 50))
+
+		// Check if the response indicates an error occurred
+		if isErrorResponse(result.FinalContent) {
+			fmt.Println("\n❌ Error detected in LLM response.")
+			
+			// Ask user what to do about the error
+			errorPrompt := tui.NewSelect("What would you like to do?", []string{
+				"Try again",
+				"Exit",
+			}, "Try again")
+			
+			var errorAction string
+			err = tui.AskOne(errorPrompt, &errorAction)
+			if err != nil {
+				return fmt.Errorf("prompt failed: %w", err)
+			}
+			
+			if errorAction == "Exit" {
+				fmt.Println("⚠️  Exiting due to LLM error.")
+				return fmt.Errorf("user chose to exit due to LLM error")
+			}
+			
+			// Continue the loop to try again
+			prompt = "The previous attempt encountered an error. Please try a different approach to analyze the package and create/update the documentation."
+			continue
+		}
 
 		// Check if README.md was created/updated and show processed content in scrollable viewer
 		readmeExists := d.checkReadmeExists()
@@ -312,8 +345,6 @@ func (d *DocumentationAgent) buildInitialPrompt(manifest *packages.PackageManife
 
 IMPORTANT FILE RESTRICTIONS:
 - ONLY work with "_dev/build/docs/README.md" - this is the source documentation file
-- NEVER read or write "docs/README.md" - this is a generated artifact and should not be modified
-- The "docs/" directory contains generated files that are created during the build process
 
 Package Information:
 - Name: %s
@@ -363,8 +394,6 @@ Your tasks:
 8. Ensure the documentation is comprehensive and helpful for users
 9. If you are not sure that information is correct, err on the side of caution and do not make assumptions and do not make up information.
 10. When writing the final README.md, preserve all human-edited sections in their exact original form and location
-
-Remember: Always work with "_dev/build/docs/README.md" as the source file. Never touch "docs/README.md" or any files in the "docs/" directory.
 
 Please start by exploring the package structure to understand what you're working with.`,
 		manifest.Name,
@@ -529,6 +558,29 @@ func (d *DocumentationAgent) validatePreservedSections(originalContent, newConte
 	}
 
 	return warnings
+}
+
+// isErrorResponse detects if the LLM response indicates an error occurred
+func isErrorResponse(content string) bool {
+	errorIndicators := []string{
+		"I encountered an error",
+		"I'm experiencing an error",
+		"I cannot complete",
+		"I'm unable to complete",
+		"Something went wrong",
+		"There was an error",
+		"I'm having trouble",
+		"Failed to",
+		"Error occurred",
+	}
+	
+	contentLower := strings.ToLower(content)
+	for _, indicator := range errorIndicators {
+		if strings.Contains(contentLower, strings.ToLower(indicator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // extractPreservedSections extracts all human-edited sections from content
