@@ -572,6 +572,7 @@ func isErrorResponse(content string) bool {
 		"I'm having trouble",
 		"Failed to",
 		"Error occurred",
+		"Task did not complete within maximum iterations",
 	}
 
 	contentLower := strings.ToLower(content)

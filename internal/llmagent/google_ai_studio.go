@@ -175,9 +175,14 @@ func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt st
 			logger.Debugf("Google AI API response filtered due to recitation")
 			response.Finished = true
 			response.Content = "My response was filtered due to potential copyright issues. Please rephrase your request."
+		case "":
+			// Empty finish reason - likely still processing, don't mark as finished
+			logger.Debugf("Google AI API returned empty finish reason - continuing")
 		default:
-			logger.Debugf("Google AI API returned unexpected finish reason: %s", candidate.FinishReason)
-			// Don't mark as finished for unknown reasons, let the agent continue
+			logger.Debugf("Google AI API returned unexpected finish reason: %s - treating as completed", candidate.FinishReason)
+			// For unknown finish reasons, mark as finished to prevent infinite loops
+			// This is especially important for gemini-2.5-flash which has known instability issues
+			response.Finished = true
 		}
 
 		// Extract text content and tool calls from parts

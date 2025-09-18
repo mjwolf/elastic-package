@@ -34,7 +34,11 @@ func (a *Agent) ExecuteTask(ctx context.Context, prompt string) (*TaskResult, er
 		Content: prompt,
 	})
 
-	maxIterations := 10 // Prevent infinite loops
+	// Adjust max iterations based on provider stability
+	maxIterations := 15 // Increased from 10 to handle unstable models like gemini-2.5-flash
+	if strings.Contains(strings.ToLower(a.provider.Name()), "gemini") {
+		maxIterations = 20 // Additional iterations for Gemini models due to known instability
+	}
 	for i := 0; i < maxIterations; i++ {
 		// Build the full prompt with conversation history
 		fullPrompt := a.buildPrompt(conversation)
@@ -81,6 +85,13 @@ func (a *Agent) ExecuteTask(ctx context.Context, prompt string) (*TaskResult, er
 				FinalContent: response.Content,
 				Conversation: conversation,
 			}, nil
+		} else {
+			// No tool calls and not finished - this can happen with unstable models
+			// Add a prompt to encourage the LLM to complete the task or use tools
+			conversation = append(conversation, ConversationEntry{
+				Type:    "user",
+				Content: "Please complete the task or use the available tools to gather the information you need. If the task is complete, please indicate that you are finished.",
+			})
 		}
 	}
 
