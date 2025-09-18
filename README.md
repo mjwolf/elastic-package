@@ -662,7 +662,7 @@ Configuration options for LLM providers (environment variables or profile config
 - BEDROCK_MODEL / llm.bedrock.model: Model ID (defaults to anthropic.claude-3-5-sonnet-20241022-v2:0)
 - GEMINI_API_KEY / llm.gemini.api_key: API key for Google AI Studio
 - GEMINI_MODEL / llm.gemini.model: Model ID (defaults to gemini-2.5-pro)
-- LOCAL_LLM_ENDPOINT / llm.local.endpoint: Endpoint for local LLM server
+- LOCAL_LLM_ENDPOINT / llm.local.endpoint: Endpoint for local LLM server (defaults to http://localhost:1234)
 - LOCAL_LLM_MODEL / llm.local.model: Model name for local LLM (defaults to llama2)
 - LOCAL_LLM_API_KEY / llm.local.api_key: API key for local LLM (optional)
 
@@ -737,7 +737,7 @@ The `elastic-package update documentation` command supports AI-powered documenta
 * `llm.bedrock.model`: Bedrock model ID (defaults to `anthropic.claude-3-5-sonnet-20241022-v2:0`)
 * `llm.gemini.api_key`: API key for Google AI Studio (Gemini) LLM services  
 * `llm.gemini.model`: Gemini model ID (defaults to `gemini-2.5-pro`)
-* `llm.local.endpoint`: Endpoint URL for local OpenAI-compatible LLM servers (required for local LLM)
+* `llm.local.endpoint`: Endpoint URL for local OpenAI-compatible LLM servers (defaults to http://localhost:1234)
 * `llm.local.model`: Model name for local LLM servers (defaults to `llama2`)
 * `llm.local.api_key`: API key for local LLM servers (optional, if authentication is required)
 

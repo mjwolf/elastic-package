@@ -286,8 +286,8 @@ func (d *DocumentationAgent) buildInitialPrompt(manifest *packages.PackageManife
 
 IMPORTANT FILE RESTRICTIONS:
 - ONLY work with "_dev/build/docs/README.md" - this is the source documentation file
-- NEVER read or write "_docs/README.md" - this is a generated artifact and should not be modified
-- The "_docs/" directory contains generated files that are created during the build process
+- NEVER read or write "docs/README.md" - this is a generated artifact and should not be modified
+- The "docs/" directory contains generated files that are created during the build process
 
 Package Information:
 - Name: %s
@@ -338,7 +338,7 @@ Your tasks:
 9. If you are not sure that information is correct, err on the side of caution and do not make assumptions and do not make up information.
 10. When writing the final README.md, preserve all human-edited sections in their exact original form and location
 
-Remember: Always work with "_dev/build/docs/README.md" as the source file. Never touch "_docs/README.md" or any files in the "_docs/" directory.
+Remember: Always work with "_dev/build/docs/README.md" as the source file. Never touch "docs/README.md" or any files in the "docs/" directory.
 
 Please start by exploring the package structure to understand what you're working with.`,
 		manifest.Name,

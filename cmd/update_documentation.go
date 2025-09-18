@@ -114,7 +114,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	// Skip confirmation prompt in non-interactive mode
 	if !nonInteractive {
 		// Prompt user for confirmation
-		confirmPrompt := tui.NewConfirm("Do you want to update the documentation using the AI agent?", false)
+		confirmPrompt := tui.NewConfirm("Do you want to update the documentation using the AI agent?", true)
 
 		var confirm bool
 		err = tui.AskOne(confirmPrompt, &confirm, tui.Required)
