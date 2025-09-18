@@ -67,9 +67,9 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		fmt.Println("🤖 LLM Agent is working...")
 		animation := NewAnimatedStatus("LLM Agent is working...")
 		animation.Start()
-		
+
 		result, err := d.agent.ExecuteTaskWithAnimation(ctx, prompt, animation)
-		
+
 		if err != nil {
 			animation.Error("Agent task failed")
 			return fmt.Errorf("agent task failed: %w", err)
@@ -156,7 +156,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 		// Execute the task with animation
 		result, err := d.agent.ExecuteTaskWithAnimation(ctx, prompt, animation)
-		
+
 		if err != nil {
 			animation.Error("Agent task failed")
 			return fmt.Errorf("agent task failed: %w", err)

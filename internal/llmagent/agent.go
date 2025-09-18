@@ -64,10 +64,10 @@ func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, ani
 			Type:    "assistant",
 			Content: response.Content,
 		})
-		
-		// Update animation to show response received
+
+		// Show sparkle to indicate LLM response received
 		if animation != nil {
-			animation.Flash()
+			animation.Sparkle()
 		}
 
 		// If there are tool calls, execute them
@@ -77,12 +77,7 @@ func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, ani
 				animation.Update("Executing tools...")
 			}
 			
-			for _, toolCall := range response.ToolCalls {
-				// Flash animation for each tool call
-				if animation != nil {
-					animation.Flash()
-				}
-				
+			for _, toolCall := range response.ToolCalls {				
 				result, err := a.executeTool(ctx, toolCall)
 				if err != nil {
 					conversation = append(conversation, ConversationEntry{

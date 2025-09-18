@@ -12,12 +12,14 @@ import (
 
 // AnimatedStatus provides animated status display
 type AnimatedStatus struct {
-	message    string
-	active     bool
-	mutex      sync.Mutex
-	stopCh     chan bool
-	frames     []string
-	frameIndex int
+	message     string
+	active      bool
+	mutex       sync.Mutex
+	stopCh      chan bool
+	frames      []string
+	frameIndex  int
+	sparkleEnd  time.Time  // When the sparkle effect should end
+	showSparkle bool       // Whether to show sparkle
 }
 
 // NewAnimatedStatus creates a new animated status display
@@ -105,11 +107,15 @@ func (a *AnimatedStatus) animate() {
 			frame := a.frames[a.frameIndex]
 			fmt.Printf("\r🤖 %s %s", a.message, frame)
 
-			// Add occasional "power-up" effect
-			if a.frameIndex == 3 { // When bar is full
+			// Show sparkle if it's active and not expired
+			now := time.Now()
+			if a.showSparkle && now.Before(a.sparkleEnd) {
 				fmt.Print(" ✨")
 			} else {
-				fmt.Print("   ") // Clear the sparkle
+				if a.showSparkle && !now.Before(a.sparkleEnd) {
+					a.showSparkle = false // Turn off expired sparkle
+				}
+				fmt.Print("   ") // Clear the sparkle space
 			}
 
 			a.frameIndex = (a.frameIndex + 1) % len(a.frames)
@@ -126,6 +132,17 @@ func (a *AnimatedStatus) Flash() {
 	if a.active {
 		// Jump to the "full" frame for visual feedback
 		a.frameIndex = 3
+	}
+}
+
+// Sparkle shows the ✨ effect for 100ms to indicate LLM response
+func (a *AnimatedStatus) Sparkle() {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	if a.active {
+		a.showSparkle = true
+		a.sparkleEnd = time.Now().Add(100 * time.Millisecond)
 	}
 }
 
