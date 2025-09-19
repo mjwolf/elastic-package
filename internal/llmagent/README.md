@@ -24,8 +24,8 @@ Implementation for Amazon Bedrock:
 - Configurable region (default: `us-east-1`)
 - Requires API key authentication
 
-### Google AI Studio Provider (`google_ai_studio.go`)
-Implementation for Google AI Studio:
+### Gemini Provider (`gemini.go`)
+Implementation for Gemini:
 - Supports Gemini models (default: `gemini-2.5-pro`)
 - Uses Google's Generative Language API
 - Requires API key authentication
@@ -61,7 +61,7 @@ export BEDROCK_API_KEY="your-bedrock-api-key"
 export BEDROCK_REGION="us-east-1"  # optional
 ```
 
-#### For Google AI Studio:
+#### For Gemini:
 ```bash
 export GEMINI_API_KEY="your-google-api-key"
 export GEMINI_MODEL="gemini-2.5-pro"  # optional
@@ -86,7 +86,7 @@ llm.bedrock.api_key: "your-bedrock-api-key"
 llm.bedrock.region: "us-east-1"  # optional, defaults to us-east-1
 llm.bedrock.model: "anthropic.claude-3-5-sonnet-20241022-v2:0"  # optional
 
-## Google AI Studio (Gemini)
+## Gemini
 llm.gemini.api_key: "your-google-api-key"
 llm.gemini.model: "gemini-2.5-pro"  # optional, defaults to gemini-2.5-pro
 
@@ -128,9 +128,9 @@ provider := llmagent.NewBedrockProvider(llmagent.BedrockConfig{
 })
 ```
 
-#### Google AI Studio Provider:
+#### Gemini Provider:
 ```go
-provider := llmagent.NewGoogleAIStudioProvider(llmagent.GoogleAIStudioConfig{
+provider := llmagent.NewGeminiProvider(llmagent.GeminiConfig{
     APIKey: "your-api-key", 
     ModelID: "gemini-2.5-pro",
 })

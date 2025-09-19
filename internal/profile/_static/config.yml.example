@@ -41,8 +41,8 @@
 # Bedrock model ID (optional, defaults to anthropic.claude-3-5-sonnet-20241022-v2:0)
 # llm.bedrock.model: "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
-## Google AI Studio (Gemini)
-# Google AI Studio API key for Gemini models
+## Gemini
+# Gemini API key for Gemini models
 # llm.gemini.api_key: "your-gemini-api-key"
 # Gemini model ID (optional, defaults to gemini-2.5-pro)
 # llm.gemini.model: "gemini-2.5-pro"

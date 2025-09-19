@@ -28,7 +28,7 @@ Configuration options for LLM providers (environment variables or profile config
 - BEDROCK_API_KEY / llm.bedrock.api_key: API key for Amazon Bedrock
 - BEDROCK_REGION / llm.bedrock.region: AWS region (defaults to us-east-1)
 - BEDROCK_MODEL / llm.bedrock.model: Model ID (defaults to anthropic.claude-3-5-sonnet-20241022-v2:0)
-- GEMINI_API_KEY / llm.gemini.api_key: API key for Google AI Studio
+- GEMINI_API_KEY / llm.gemini.api_key: API key for Gemini
 - GEMINI_MODEL / llm.gemini.model: Model ID (defaults to gemini-2.5-pro)
 - LOCAL_LLM_ENDPOINT / llm.local.endpoint: Endpoint for local LLM server
 - LOCAL_LLM_MODEL / llm.local.model: Model name for local LLM (defaults to llama2)
@@ -99,7 +99,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		cmd.Println()
 		cmd.Println(tui.Info("For AI-powered documentation updates, configure one of these LLM providers:"))
 		cmd.Println(tui.Success("  - Amazon Bedrock: Set BEDROCK_API_KEY or add llm.bedrock.api_key to profile config"))
-		cmd.Println(tui.Success("  - Google AI Studio: Set GEMINI_API_KEY or add llm.gemini.api_key to profile config"))
+		cmd.Println(tui.Success("  - Gemini: Set GEMINI_API_KEY or add llm.gemini.api_key to profile config"))
 		cmd.Println(tui.Success("  - Local LLM: Set LOCAL_LLM_ENDPOINT or add llm.local.endpoint to profile config"))
 		cmd.Println()
 		cmd.Println(tui.Info("Profile configuration: ~/.elastic-package/profiles/<profile>/config.yml"))
@@ -138,11 +138,11 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		cmd.Printf("Using Amazon Bedrock provider with region: %s, model: %s\n", region, modelID)
 	} else if googleAPIKey != "" {
 		modelID := getConfigValue(profile, "GEMINI_MODEL", "llm.gemini.model", "gemini-2.5-pro")
-		provider = llmagent.NewGoogleAIStudioProvider(llmagent.GoogleAIStudioConfig{
+		provider = llmagent.NewGeminiProvider(llmagent.GeminiConfig{
 			APIKey:  googleAPIKey,
 			ModelID: modelID,
 		})
-		cmd.Printf("Using Google AI Studio provider with model: %s\n", modelID)
+		cmd.Printf("Using Gemini provider with model: %s\n", modelID)
 	} else if localEndpoint != "" {
 		modelID := getConfigValue(profile, "LOCAL_LLM_MODEL", "llm.local.model", "llama2")
 		localAPIKey := getConfigValue(profile, "LOCAL_LLM_API_KEY", "llm.local.api_key", "")

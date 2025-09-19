@@ -660,7 +660,7 @@ Configuration options for LLM providers (environment variables or profile config
 - BEDROCK_API_KEY / llm.bedrock.api_key: API key for Amazon Bedrock
 - BEDROCK_REGION / llm.bedrock.region: AWS region (defaults to us-east-1)
 - BEDROCK_MODEL / llm.bedrock.model: Model ID (defaults to anthropic.claude-3-5-sonnet-20241022-v2:0)
-- GEMINI_API_KEY / llm.gemini.api_key: API key for Google AI Studio
+- GEMINI_API_KEY / llm.gemini.api_key: API key for Gemini
 - GEMINI_MODEL / llm.gemini.model: Model ID (defaults to gemini-2.5-pro)
 - LOCAL_LLM_ENDPOINT / llm.local.endpoint: Endpoint for local LLM server (defaults to http://localhost:1234)
 - LOCAL_LLM_MODEL / llm.local.model: Model name for local LLM (defaults to llama2)
@@ -735,7 +735,7 @@ The `elastic-package update documentation` command supports AI-powered documenta
 * `llm.bedrock.api_key`: API key for Amazon Bedrock LLM services
 * `llm.bedrock.region`: AWS region for Bedrock services (defaults to `us-east-1`)
 * `llm.bedrock.model`: Bedrock model ID (defaults to `anthropic.claude-3-5-sonnet-20241022-v2:0`)
-* `llm.gemini.api_key`: API key for Google AI Studio (Gemini) LLM services  
+* `llm.gemini.api_key`: API key for Gemini LLM services  
 * `llm.gemini.model`: Gemini model ID (defaults to `gemini-2.5-pro`)
 * `llm.local.endpoint`: Endpoint URL for local OpenAI-compatible LLM servers (defaults to http://localhost:1234)
 * `llm.local.model`: Model name for local LLM servers (defaults to `llama2`)
@@ -819,7 +819,7 @@ There are available some environment variables that could be used to change some
     - `BEDROCK_API_KEY`: API key for Amazon Bedrock LLM services
     - `BEDROCK_REGION`: AWS region for Bedrock services (defaults to `us-east-1`)
     - `BEDROCK_MODEL`: Bedrock model ID (defaults to `anthropic.claude-3-5-sonnet-20241022-v2:0`)
-    - `GEMINI_API_KEY`: API key for Google AI Studio (Gemini) LLM services
+    - `GEMINI_API_KEY`: API key for Gemini LLM services
     - `GEMINI_MODEL`: Gemini model ID (defaults to `gemini-2.5-pro`)
     - `LOCAL_LLM_ENDPOINT`: Endpoint URL for local OpenAI-compatible LLM servers (e.g., Ollama, LocalAI)
     - `LOCAL_LLM_MODEL`: Model name for local LLM servers (defaults to `llama2`)

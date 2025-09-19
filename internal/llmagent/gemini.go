@@ -15,23 +15,23 @@ import (
 	"github.com/elastic/elastic-package/internal/logger"
 )
 
-// GoogleAIStudioProvider implements LLMProvider for Google AI Studio
-type GoogleAIStudioProvider struct {
+// GeminiProvider implements LLMProvider for Gemini
+type GeminiProvider struct {
 	apiKey   string
 	modelID  string
 	endpoint string
 	client   *http.Client
 }
 
-// GoogleAIStudioConfig holds configuration for the Google AI Studio provider
-type GoogleAIStudioConfig struct {
+// GeminiConfig holds configuration for the Gemini provider
+type GeminiConfig struct {
 	APIKey   string
 	ModelID  string
 	Endpoint string
 }
 
-// NewGoogleAIStudioProvider creates a new Google AI Studio LLM provider
-func NewGoogleAIStudioProvider(config GoogleAIStudioConfig) *GoogleAIStudioProvider {
+// NewGeminiProvider creates a new Gemini LLM provider
+func NewGeminiProvider(config GeminiConfig) *GeminiProvider {
 	if config.ModelID == "" {
 		config.ModelID = "gemini-2.5-pro" // Default model
 	}
@@ -40,11 +40,11 @@ func NewGoogleAIStudioProvider(config GoogleAIStudioConfig) *GoogleAIStudioProvi
 	}
 
 	// Debug logging with masked API key for security
-	logger.Debugf("Creating Google AI Studio provider with model: %s, endpoint: %s",
+	logger.Debugf("Creating Gemini provider with model: %s, endpoint: %s",
 		config.ModelID, config.Endpoint)
 	logger.Debugf("API key (masked for security): %s", maskAPIKey(config.APIKey))
 
-	return &GoogleAIStudioProvider{
+	return &GeminiProvider{
 		apiKey:   config.APIKey,
 		modelID:  config.ModelID,
 		endpoint: config.Endpoint,
@@ -55,12 +55,12 @@ func NewGoogleAIStudioProvider(config GoogleAIStudioConfig) *GoogleAIStudioProvi
 }
 
 // Name returns the provider name
-func (g *GoogleAIStudioProvider) Name() string {
-	return "Google AI Studio"
+func (g *GeminiProvider) Name() string {
+	return "Gemini"
 }
 
-// GenerateResponse sends a prompt to Google AI Studio and returns the response
-func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt string, tools []Tool) (*LLMResponse, error) {
+// GenerateResponse sends a prompt to Gemini and returns the response
+func (g *GeminiProvider) GenerateResponse(ctx context.Context, prompt string, tools []Tool) (*LLMResponse, error) {
 	// Convert tools to Google AI format
 	googleTools := make([]googleFunctionDeclaration, len(tools))
 	for i, tool := range tools {
@@ -120,7 +120,7 @@ func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt st
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("google AI API returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("Gemini API returned status %d", resp.StatusCode)
 	}
 
 	// Parse response
@@ -130,17 +130,17 @@ func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt st
 	}
 
 	// Debug logging for the full response
-	logger.Debugf("Google AI API response - Candidates count: %d", len(googleResp.Candidates))
+	logger.Debugf("Gemini API response - Candidates count: %d", len(googleResp.Candidates))
 	if len(googleResp.Candidates) > 0 {
 		candidate := googleResp.Candidates[0]
-		logger.Debugf("Google AI API response - FinishReason: %s", candidate.FinishReason)
-		logger.Debugf("Google AI API response - Parts count: %d", len(candidate.Content.Parts))
+		logger.Debugf("Gemini API response - FinishReason: %s", candidate.FinishReason)
+		logger.Debugf("Gemini API response - Parts count: %d", len(candidate.Content.Parts))
 		for i, part := range candidate.Content.Parts {
 			if part.Text != "" {
-				logger.Debugf("Google AI API response - Part[%d] Text: %s", i, part.Text)
+				logger.Debugf("Gemini API response - Part[%d] Text: %s", i, part.Text)
 			}
 			if part.FunctionCall != nil {
-				logger.Debugf("Google AI API response - Part[%d] FunctionCall: name=%s, args=%v",
+				logger.Debugf("Gemini API response - Part[%d] FunctionCall: name=%s, args=%v",
 					i, part.FunctionCall.Name, part.FunctionCall.Args)
 			}
 		}
@@ -160,26 +160,26 @@ func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt st
 		case "STOP":
 			response.Finished = true
 		case "MALFORMED_FUNCTION_CALL":
-			logger.Debugf("Google AI API returned malformed function call - treating as error")
+			logger.Debugf("Gemini API returned malformed function call - treating as error")
 			response.Finished = true
 			response.Content = "I encountered an error while trying to call a function. Let me try a different approach."
 		case "MAX_TOKENS":
-			logger.Debugf("Google AI API hit max tokens limit")
+			logger.Debugf("Gemini API hit max tokens limit")
 			response.Finished = true
 			response.Content = "I reached the maximum response length. Please try breaking this into smaller tasks."
 		case "SAFETY":
-			logger.Debugf("Google AI API response filtered by safety policies")
+			logger.Debugf("Gemini API response filtered by safety policies")
 			response.Finished = true
 			response.Content = "My response was filtered due to safety policies. Please rephrase your request."
 		case "RECITATION":
-			logger.Debugf("Google AI API response filtered due to recitation")
+			logger.Debugf("Gemini API response filtered due to recitation")
 			response.Finished = true
 			response.Content = "My response was filtered due to potential copyright issues. Please rephrase your request."
 		case "":
 			// Empty finish reason - likely still processing, don't mark as finished
-			logger.Debugf("Google AI API returned empty finish reason - continuing")
+			logger.Debugf("Gemini API returned empty finish reason - continuing")
 		default:
-			logger.Debugf("Google AI API returned unexpected finish reason: %s - treating as completed", candidate.FinishReason)
+			logger.Debugf("Gemini API returned unexpected finish reason: %s - treating as completed", candidate.FinishReason)
 			// For unknown finish reasons, mark as finished to prevent infinite loops
 			// This is especially important for gemini-2.5-flash which has known instability issues
 			response.Finished = true
@@ -216,7 +216,7 @@ func (g *GoogleAIStudioProvider) GenerateResponse(ctx context.Context, prompt st
 	return response, nil
 }
 
-// Google AI Studio specific types for API communication
+// Gemini specific types for API communication
 type googleRequest struct {
 	Contents         []googleContent         `json:"contents"`
 	Tools            []googleTool            `json:"tools,omitempty"`

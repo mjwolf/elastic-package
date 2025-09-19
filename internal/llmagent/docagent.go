@@ -25,11 +25,11 @@ var exampleReadmeContent string
 
 // DocumentationAgent handles documentation updates for packages
 type DocumentationAgent struct {
-	agent                *Agent
-	packageRoot          string
-	templateContent      string
+	agent                 *Agent
+	packageRoot           string
+	templateContent       string
 	originalReadmeContent *string // Stores original README content for restoration on cancel
-	originalReadmeExists bool     // Tracks if README existed before we started
+	originalReadmeExists  bool    // Tracks if README existed before we started
 }
 
 // NewDocumentationAgent creates a new documentation agent
@@ -708,11 +708,11 @@ Begin by reading the current README.md file, then implement the requested change
 // backupOriginalReadme stores the current README content for potential restoration
 func (d *DocumentationAgent) backupOriginalReadme() {
 	readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
-	
+
 	// Check if README exists
 	if _, err := os.Stat(readmePath); err == nil {
 		d.originalReadmeExists = true
-		
+
 		// Read and store the original content
 		if content, err := os.ReadFile(readmePath); err == nil {
 			contentStr := string(content)
@@ -731,7 +731,7 @@ func (d *DocumentationAgent) backupOriginalReadme() {
 // restoreOriginalReadme restores the README to its original state
 func (d *DocumentationAgent) restoreOriginalReadme() {
 	readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
-	
+
 	if d.originalReadmeExists && d.originalReadmeContent != nil {
 		// Restore original content
 		if err := os.WriteFile(readmePath, []byte(*d.originalReadmeContent), 0o644); err != nil {
