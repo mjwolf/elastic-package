@@ -29,8 +29,8 @@ func (a *Agent) ExecuteTask(ctx context.Context, prompt string) (*TaskResult, er
 	return a.ExecuteTaskWithAnimation(ctx, prompt, nil)
 }
 
-// ExecuteTaskWithAnimation runs the agent to complete a task with optional animation
-func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, animation *AnimatedStatus) (*TaskResult, error) {
+// ExecuteTaskWithAnimation runs the agent to complete a task (animation parameter removed)
+func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, animation interface{}) (*TaskResult, error) {
 	var conversation []ConversationEntry
 
 	// Add initial prompt
@@ -48,10 +48,7 @@ func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, ani
 		// Build the full prompt with conversation history
 		fullPrompt := a.buildPrompt(conversation)
 
-		// Update animation to show LLM is thinking
-		if animation != nil {
-			animation.Update("LLM is thinking...")
-		}
+		// Note: Animation removed - LLM is thinking
 
 		// Get response from LLM
 		response, err := a.provider.GenerateResponse(ctx, fullPrompt, a.tools)
@@ -65,17 +62,11 @@ func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, ani
 			Content: response.Content,
 		})
 
-		// Show sparkle to indicate LLM response received
-		if animation != nil {
-			animation.Sparkle()
-		}
+		// Note: Animation removed - LLM response received
 
 		// If there are tool calls, execute them
 		if len(response.ToolCalls) > 0 {
-			// Update animation to show tool execution
-			if animation != nil {
-				animation.Update("Executing tools...")
-			}
+			// Note: Animation removed - executing tools
 
 			for _, toolCall := range response.ToolCalls {
 				result, err := a.executeTool(ctx, toolCall)
