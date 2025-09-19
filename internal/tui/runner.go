@@ -108,14 +108,14 @@ func (m *questionnaireModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Save current answer
 			current := m.questions[m.currentQuestion]
-			
+
 			// Special handling for TextArea - check if cancelled
 			if ta, ok := current.Prompt.(*TextArea); ok && ta.IsCancelled() {
 				// User cancelled - treat as error
 				m.err = fmt.Errorf("cancelled by user")
 				return m, tea.Quit
 			}
-			
+
 			m.answers[current.Name] = current.Prompt.Value()
 
 			// Move to next question or finish

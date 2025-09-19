@@ -5,6 +5,7 @@
 package tui
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -113,3 +114,98 @@ func (t *TextArea) Render() string {
 
 	return b.String()
 }
+
+// textAreaModel is a standalone model for textarea input that doesn't interfere with questionnaire workflow
+type textAreaModel struct {
+	textarea  textarea.Model
+	message   string
+	submitted bool
+	cancelled bool
+	err       string
+}
+
+func newTextAreaModel(message string) textAreaModel {
+	ta := textarea.New()
+	ta.Placeholder = "Enter your text here... (ESC to cancel, Ctrl+D to submit)"
+	ta.SetWidth(80)
+	ta.SetHeight(8)
+	ta.Focus()
+
+	return textAreaModel{
+		textarea: ta,
+		message:  message,
+	}
+}
+
+func (m textAreaModel) Init() tea.Cmd {
+	return textarea.Blink
+}
+
+func (m textAreaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			m.cancelled = true
+			return m, tea.Quit
+		case "ctrl+d":
+			m.submitted = true
+			return m, tea.Quit
+		case "ctrl+c":
+			m.cancelled = true
+			return m, tea.Quit
+		}
+	}
+
+	var cmd tea.Cmd
+	m.textarea, cmd = m.textarea.Update(msg)
+	return m, cmd
+}
+
+func (m textAreaModel) View() string {
+	var b strings.Builder
+
+	// Question message
+	b.WriteString(focusedStyle.Render(m.message))
+	b.WriteString("\n")
+
+	// Instructions
+	b.WriteString(helpStyle.Render("  Use Ctrl+D to submit, ESC to cancel"))
+	b.WriteString("\n\n")
+
+	// TextArea
+	b.WriteString(m.textarea.View())
+
+	// Error message
+	if m.err != "" {
+		b.WriteString("\n")
+		b.WriteString(errorStyle.Render("✗ " + m.err))
+	}
+
+	return b.String()
+}
+
+// AskTextArea runs a standalone textarea dialog that doesn't interfere with questionnaire workflow
+func AskTextArea(message string) (string, error) {
+	model := newTextAreaModel(message)
+	program := tea.NewProgram(model)
+
+	finalModel, err := program.Run()
+	if err != nil {
+		return "", err
+	}
+
+	result := finalModel.(textAreaModel)
+	if result.cancelled {
+		return "", ErrCancelled
+	}
+
+	if result.submitted {
+		return strings.TrimSpace(result.textarea.Value()), nil
+	}
+
+	return "", ErrCancelled
+}
+
+// ErrCancelled is returned when user cancels the textarea dialog
+var ErrCancelled = errors.New("cancelled by user")
