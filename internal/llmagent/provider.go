@@ -67,3 +67,10 @@ type ToolResult struct {
 	// Error indicates if there was an error
 	Error string
 }
+
+// Compile-time interface checks to ensure all provider types implement the LLMProvider interface
+var (
+	_ LLMProvider = &BedrockProvider{}
+	_ LLMProvider = &GeminiProvider{}
+	_ LLMProvider = &LocalProvider{}
+)

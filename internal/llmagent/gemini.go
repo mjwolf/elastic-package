@@ -120,7 +120,7 @@ func (g *GeminiProvider) GenerateResponse(ctx context.Context, prompt string, to
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Gemini API returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("gemini API returned status %d", resp.StatusCode)
 	}
 
 	// Parse response
