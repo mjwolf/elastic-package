@@ -108,14 +108,6 @@ func (m *questionnaireModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Save current answer
 			current := m.questions[m.currentQuestion]
-
-			// Special handling for TextArea - check if cancelled
-			if ta, ok := current.Prompt.(*TextArea); ok && ta.IsCancelled() {
-				// User cancelled - treat as error
-				m.err = fmt.Errorf("cancelled by user")
-				return m, tea.Quit
-			}
-
 			m.answers[current.Name] = current.Prompt.Value()
 
 			// Move to next question or finish
@@ -128,29 +120,6 @@ func (m *questionnaireModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Clear any previous error
 			m.setCurrentError("")
 			return m, nil
-		case "ctrl+d":
-			// Handle Ctrl+D submit for TextArea
-			current := m.questions[m.currentQuestion]
-			if _, ok := current.Prompt.(*TextArea); ok {
-				if err := m.validateCurrentAnswer(); err != nil {
-					m.setCurrentError(err.Error())
-					return m, nil
-				}
-
-				// Save current answer
-				m.answers[current.Name] = current.Prompt.Value()
-
-				// Move to next question or finish
-				m.currentQuestion++
-				if m.currentQuestion >= len(m.questions) {
-					m.finished = true
-					return m, tea.Quit
-				}
-
-				// Clear any previous error
-				m.setCurrentError("")
-				return m, nil
-			}
 		}
 	}
 

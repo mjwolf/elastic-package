@@ -199,8 +199,8 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 				return fmt.Errorf("user chose to exit due to LLM error")
 			}
 
-			// Continue the loop to try again
-			prompt = "The previous attempt encountered an error. Please try a different approach to analyze the package and create/update the documentation."
+			// Continue the loop to try again with comprehensive context
+			prompt = d.buildRevisionPrompt("The previous attempt encountered an error. Please try a different approach to analyze the package and create/update the documentation.")
 			continue
 		}
 
@@ -329,7 +329,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 			}
 
 			fmt.Println("🔄 Trying again to create README.md...")
-			prompt = "You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis."
+			prompt = d.buildRevisionPrompt("You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis.")
 
 		case "Request changes":
 			changes, err := tui.AskTextArea("What changes would you like to make to the documentation?")
@@ -348,7 +348,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 				continue
 			}
 
-			prompt = fmt.Sprintf("Please make the following changes to the documentation:\n\n%s", changes)
+			prompt = d.buildRevisionPrompt(changes)
 
 		case "Cancel":
 			fmt.Println("❌ Documentation update cancelled.")
@@ -650,4 +650,57 @@ func (d *DocumentationAgent) extractPreservedSections(content string) map[string
 	}
 
 	return sections
+}
+
+// buildRevisionPrompt creates a comprehensive prompt for document revisions that includes all necessary context
+func (d *DocumentationAgent) buildRevisionPrompt(changes string) string {
+	// Read package manifest for context
+	manifest, err := packages.ReadPackageManifestFromPackageRoot(d.packageRoot)
+	if err != nil {
+		// Fallback to a simpler prompt if we can't read the manifest
+		return fmt.Sprintf("Please make the following changes to the documentation:\n\n%s", changes)
+	}
+
+	return fmt.Sprintf(`You are continuing to work on documentation for an Elastic Integration. You have access to tools to analyze the package and make changes.
+
+CURRENT TASK: Make specific revisions to the existing documentation based on user feedback.
+
+Package Information:
+* Package Name: %s
+* Title: %s  
+* Type: %s
+* Version: %s
+* Description: %s
+
+Critical Directives (Follow These Strictly):
+1. File Restriction: You MUST ONLY write to the _dev/build/docs/README.md file. Do not modify any other files.
+2. Preserve Human Content: You MUST preserve any content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> comment blocks.
+3. Read Current Content: First read the existing _dev/build/docs/README.md to understand the current state.
+4. No Hallucination: If you need information not available in package files, insert placeholders: << INFORMATION NOT AVAILABLE - PLEASE UPDATE >>.
+
+Your Step-by-Step Process:
+1. Read the current _dev/build/docs/README.md file to understand what exists
+2. Analyze the requested changes carefully
+3. Use available tools to gather any additional information needed
+4. Make the specific changes requested while preserving existing good content
+5. Ensure the result is comprehensive and follows Elastic documentation standards
+
+User-Requested Changes:
+%s
+
+Template Reference:
+%s
+
+High-Quality Example:
+%s
+
+Begin by reading the current README.md file, then implement the requested changes thoughtfully.`,
+		manifest.Name,
+		manifest.Title,
+		manifest.Type,
+		manifest.Version,
+		manifest.Description,
+		changes,
+		d.templateContent,
+		exampleReadmeContent)
 }
