@@ -25,9 +25,11 @@ var exampleReadmeContent string
 
 // DocumentationAgent handles documentation updates for packages
 type DocumentationAgent struct {
-	agent           *Agent
-	packageRoot     string
-	templateContent string
+	agent                *Agent
+	packageRoot          string
+	templateContent      string
+	originalReadmeContent *string // Stores original README content for restoration on cancel
+	originalReadmeExists bool     // Tracks if README existed before we started
 }
 
 // NewDocumentationAgent creates a new documentation agent
@@ -55,6 +57,9 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 	if err != nil {
 		return fmt.Errorf("failed to read package manifest: %w", err)
 	}
+
+	// Backup original README content before making any changes
+	d.backupOriginalReadme()
 
 	// Create the initial prompt
 	prompt := d.buildInitialPrompt(manifest)
@@ -139,14 +144,6 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 	fmt.Println("The LLM agent will analyze your package and update the documentation.")
 	fmt.Println()
 
-	// Store original content for validation if it exists
-	var originalReadmeContent string
-	if d.checkReadmeExists() {
-		if content, err := d.readCurrentReadme(); err == nil {
-			originalReadmeContent = content
-		}
-	}
-
 	// Interactive loop
 	for {
 		fmt.Println("🤖 LLM Agent is working...")
@@ -196,6 +193,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 			if errorAction == "Exit" {
 				fmt.Println("⚠️  Exiting due to LLM error.")
+				d.restoreOriginalReadme()
 				return fmt.Errorf("user chose to exit due to LLM error")
 			}
 
@@ -274,9 +272,9 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 			// Always try to write content from LLM response first, then check if file exists
 			if d.tryWriteReadmeFromResponse(result) {
 				// Validate preserved sections if we had original content
-				if originalReadmeContent != "" {
+				if d.originalReadmeContent != nil {
 					if newContent, err := d.readCurrentReadme(); err == nil {
-						warnings := d.validatePreservedSections(originalReadmeContent, newContent)
+						warnings := d.validatePreservedSections(*d.originalReadmeContent, newContent)
 						if len(warnings) > 0 {
 							fmt.Println("⚠️  Warning: Some human-edited sections may not have been preserved:")
 							for _, warning := range warnings {
@@ -293,9 +291,9 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 			// Check if README was already created by the LLM using tools
 			if readmeExists {
 				// Validate that human-edited sections were preserved if we had original content
-				if originalReadmeContent != "" {
+				if d.originalReadmeContent != nil {
 					if newContent, err := d.readCurrentReadme(); err == nil {
-						warnings := d.validatePreservedSections(originalReadmeContent, newContent)
+						warnings := d.validatePreservedSections(*d.originalReadmeContent, newContent)
 						if len(warnings) > 0 {
 							fmt.Println("⚠️  Warning: Some human-edited sections may not have been preserved:")
 							for _, warning := range warnings {
@@ -325,6 +323,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 			if continueChoice == "Exit anyway" {
 				fmt.Println("⚠️  Exiting without creating README.md file.")
+				d.restoreOriginalReadme()
 				return nil
 			}
 
@@ -352,6 +351,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 		case "Cancel":
 			fmt.Println("❌ Documentation update cancelled.")
+			d.restoreOriginalReadme()
 			return nil
 		}
 	}
@@ -703,4 +703,50 @@ Begin by reading the current README.md file, then implement the requested change
 		changes,
 		d.templateContent,
 		exampleReadmeContent)
+}
+
+// backupOriginalReadme stores the current README content for potential restoration
+func (d *DocumentationAgent) backupOriginalReadme() {
+	readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
+	
+	// Check if README exists
+	if _, err := os.Stat(readmePath); err == nil {
+		d.originalReadmeExists = true
+		
+		// Read and store the original content
+		if content, err := os.ReadFile(readmePath); err == nil {
+			contentStr := string(content)
+			d.originalReadmeContent = &contentStr
+			fmt.Printf("📋 Backed up original README.md (%d characters)\n", len(contentStr))
+		} else {
+			fmt.Printf("⚠️  Could not read original README.md for backup: %v\n", err)
+		}
+	} else {
+		d.originalReadmeExists = false
+		d.originalReadmeContent = nil
+		fmt.Println("📋 No existing README.md found - will create new one")
+	}
+}
+
+// restoreOriginalReadme restores the README to its original state
+func (d *DocumentationAgent) restoreOriginalReadme() {
+	readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
+	
+	if d.originalReadmeExists && d.originalReadmeContent != nil {
+		// Restore original content
+		if err := os.WriteFile(readmePath, []byte(*d.originalReadmeContent), 0o644); err != nil {
+			fmt.Printf("⚠️  Failed to restore original README.md: %v\n", err)
+		} else {
+			fmt.Printf("🔄 Restored original README.md (%d characters)\n", len(*d.originalReadmeContent))
+		}
+	} else if !d.originalReadmeExists {
+		// No original file existed, so remove any file that was created
+		if err := os.Remove(readmePath); err != nil {
+			if !os.IsNotExist(err) {
+				fmt.Printf("⚠️  Failed to remove created README.md: %v\n", err)
+			}
+		} else {
+			fmt.Println("🗑️  Removed created README.md file - restored to original state (no file)")
+		}
+	}
 }
