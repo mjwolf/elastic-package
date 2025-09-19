@@ -6,49 +6,116 @@ package tui
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Confirm represents a yes/no confirmation prompt
+// confirmItem implements list.Item for the confirm component
+type confirmItem struct {
+	title string
+	value bool
+}
+
+func (i confirmItem) FilterValue() string { return i.title }
+func (i confirmItem) Title() string       { return i.title }
+func (i confirmItem) Description() string { return "" }
+
+// Custom delegate with explicit selection indicator
+type confirmDelegate struct{}
+
+func (d confirmDelegate) Height() int                             { return 1 }
+func (d confirmDelegate) Spacing() int                            { return 0 }
+func (d confirmDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d confirmDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	i, ok := listItem.(confirmItem)
+	if !ok {
+		return
+	}
+
+	str := i.title
+
+	// Show selection indicator
+	if index == m.Index() {
+		str = focusedStyle.Render("> " + str)
+	} else {
+		str = blurredStyle.Render("  " + str)
+	}
+
+	fmt.Fprint(w, str)
+}
+
+// Confirm represents a yes/no confirmation prompt using bubbles list
 type Confirm struct {
 	message      string
 	defaultValue bool
-	value        bool
+	list         list.Model
 	focused      bool
 	error        string
 }
 
 // NewConfirm creates a new confirm prompt
 func NewConfirm(message string, defaultValue bool) *Confirm {
+	items := []list.Item{
+		confirmItem{title: "Yes", value: true},
+		confirmItem{title: "No", value: false},
+	}
+
+	selectedIndex := 1 // Default to "No" (index 1)
+	if defaultValue {
+		selectedIndex = 0 // "Yes" (index 0)
+	}
+
+	l := list.New(items, confirmDelegate{}, 20, 3) // Slightly larger height to ensure both options show
+	l.SetShowStatusBar(false)
+	l.SetShowTitle(false)
+	l.SetShowHelp(false)
+	l.SetShowPagination(false) // Disable pagination to show all options
+	l.SetFilteringEnabled(false)
+	l.Select(selectedIndex)
+
+	// Custom styles - using existing styles from models.go
+	l.Styles.PaginationStyle = helpStyle
+	l.Styles.HelpStyle = helpStyle
+
 	return &Confirm{
 		message:      message,
 		defaultValue: defaultValue,
-		value:        defaultValue,
+		list:         l,
 		focused:      true,
 	}
 }
 
 func (c *Confirm) Message() string         { return c.message }
 func (c *Confirm) Default() interface{}    { return c.defaultValue }
-func (c *Confirm) Value() interface{}      { return c.value }
 func (c *Confirm) SetError(err string)     { c.error = err }
 func (c *Confirm) SetFocused(focused bool) { c.focused = focused }
+
+func (c *Confirm) Value() interface{} {
+	if item, ok := c.list.SelectedItem().(confirmItem); ok {
+		return item.value
+	}
+	return c.defaultValue
+}
 
 func (c *Confirm) Update(msg tea.Msg) (Prompt, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch strings.ToLower(msg.String()) {
 		case "y":
-			c.value = true
+			c.list.Select(0) // Yes
+			return c, nil
 		case "n":
-			c.value = false
-		case "left", "right":
-			c.value = !c.value
+			c.list.Select(1) // No
+			return c, nil
 		}
 	}
-	return c, nil
+
+	var cmd tea.Cmd
+	c.list, cmd = c.list.Update(msg)
+	return c, cmd
 }
 
 func (c *Confirm) Render() string {
@@ -68,22 +135,8 @@ func (c *Confirm) Render() string {
 	b.WriteString(helpStyle.Render(fmt.Sprintf(" (%s)", defaultText)))
 	b.WriteString("\n")
 
-	// Current selection
-	yesStyle := blurredStyle
-	noStyle := blurredStyle
-
-	if c.focused {
-		if c.value {
-			yesStyle = focusedStyle
-		} else {
-			noStyle = focusedStyle
-		}
-	}
-
-	b.WriteString("  ")
-	b.WriteString(yesStyle.Render("Yes"))
-	b.WriteString(" / ")
-	b.WriteString(noStyle.Render("No"))
+	// List options
+	b.WriteString(c.list.View())
 
 	// Error message
 	if c.error != "" {

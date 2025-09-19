@@ -9,9 +9,53 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
+
+// keyMap defines key bindings for the questionnaire
+type keyMap struct {
+	Enter key.Binding
+	Quit  key.Binding
+	Up    key.Binding
+	Down  key.Binding
+	Space key.Binding
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Enter, k.Quit}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down, k.Space},
+		{k.Enter, k.Quit},
+	}
+}
+
+var keys = keyMap{
+	Enter: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("enter", "continue"),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("ctrl+c"),
+		key.WithHelp("ctrl+c", "cancel"),
+	),
+	Up: key.NewBinding(
+		key.WithKeys("up", "k"),
+		key.WithHelp("↑/k", "up"),
+	),
+	Down: key.NewBinding(
+		key.WithKeys("down", "j"),
+		key.WithHelp("↓/j", "down"),
+	),
+	Space: key.NewBinding(
+		key.WithKeys(" "),
+		key.WithHelp("space", "select"),
+	),
+}
 
 // questionnaireModel handles multiple questions
 type questionnaireModel struct {
@@ -22,6 +66,7 @@ type questionnaireModel struct {
 	err             error
 	width           int
 	height          int
+	help            help.Model
 }
 
 func newQuestionnaireModel(questions []*Question) *questionnaireModel {
@@ -30,6 +75,7 @@ func newQuestionnaireModel(questions []*Question) *questionnaireModel {
 		answers:   make(map[string]interface{}),
 		width:     80,
 		height:    24,
+		help:      help.New(),
 	}
 }
 
@@ -108,23 +154,27 @@ func (m *questionnaireModel) setCurrentError(err string) {
 
 func (m *questionnaireModel) View() string {
 	if m.finished {
-		return ""
+		// When finished, show the final summary of all answers
+		return m.renderFinalSummary()
 	}
 
 	var b strings.Builder
 
-	// Header with progress
-	progress := fmt.Sprintf("Question %d of %d", m.currentQuestion+1, len(m.questions))
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("86")).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderBottom(true).
-		Width(m.width).
-		Align(lipgloss.Center)
+	// Display previous questions and their answers
+	for i := 0; i < m.currentQuestion; i++ {
+		question := m.questions[i]
+		if answer, exists := m.answers[question.Name]; exists {
+			answerStr := m.formatAnswer(answer)
+			questionLine := fmt.Sprintf("? %s: %s", question.Prompt.Message(), answerStr)
+			b.WriteString(blurredStyle.Render(questionLine))
+			b.WriteString("\n")
+		}
+	}
 
-	b.WriteString(headerStyle.Render(progress))
-	b.WriteString("\n\n")
+	// Add spacing if there were previous questions
+	if m.currentQuestion > 0 {
+		b.WriteString("\n")
+	}
 
 	// Current question
 	if m.currentQuestion < len(m.questions) {
@@ -132,31 +182,50 @@ func (m *questionnaireModel) View() string {
 		b.WriteString(current.Prompt.Render())
 	}
 
-	// Footer instructions
+	// Footer help
 	b.WriteString("\n\n")
-	instructions := "Press Enter to continue, Ctrl+C to cancel"
-	if isMultiSelect(m.questions[m.currentQuestion].Prompt) {
-		instructions = "Use ↑↓ to navigate, Space to select, Enter to continue, Ctrl+C to cancel"
-	} else if isSelect(m.questions[m.currentQuestion].Prompt) {
-		instructions = "Use ↑↓ to navigate, Enter to continue, Ctrl+C to cancel"
-	}
-
-	footerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Italic(true)
-	b.WriteString(footerStyle.Render(instructions))
+	helpView := m.help.View(keys)
+	b.WriteString(helpView)
 
 	return b.String()
 }
 
-func isMultiSelect(prompt Prompt) bool {
-	_, ok := prompt.(*MultiSelect)
-	return ok
+// renderFinalSummary shows all questions and answers when finished
+func (m *questionnaireModel) renderFinalSummary() string {
+	var b strings.Builder
+
+	// Display all questions and their answers
+	for i := 0; i < len(m.questions); i++ {
+		question := m.questions[i]
+		if answer, exists := m.answers[question.Name]; exists {
+			answerStr := m.formatAnswer(answer)
+			questionLine := fmt.Sprintf("? %s: %s", question.Prompt.Message(), answerStr)
+			b.WriteString(blurredStyle.Render(questionLine))
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String()
 }
 
-func isSelect(prompt Prompt) bool {
-	_, ok := prompt.(*Select)
-	return ok
+// formatAnswer formats an answer for display in the previous questions summary
+func (m *questionnaireModel) formatAnswer(answer interface{}) string {
+	switch v := answer.(type) {
+	case string:
+		return v
+	case bool:
+		if v {
+			return "Yes"
+		}
+		return "No"
+	case []string:
+		if len(v) == 0 {
+			return "(none selected)"
+		}
+		return strings.Join(v, ", ")
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // Ask runs multiple questions and stores answers in the provided struct
@@ -179,7 +248,7 @@ func Ask(questions []*Question, answers interface{}) error {
 }
 
 // AskOne runs a single question
-func AskOne(prompt Prompt, answer interface{}, validators ...Validator) error {
+func AskOne(prompt Prompt, answer interface{}, validators ...ValidatorFunc) error {
 	question := &Question{
 		Name:   "answer",
 		Prompt: prompt,
