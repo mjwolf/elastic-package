@@ -94,6 +94,11 @@ var (
 	helpStyle       lipgloss.Style
 	selectedStyle   lipgloss.Style
 	unselectedStyle lipgloss.Style
+	
+	// Console output styles for consistent coloring across the application
+	warningStyle lipgloss.Style
+	infoStyle    lipgloss.Style
+	successStyle lipgloss.Style
 )
 
 // Initialize styles based on color support
@@ -106,6 +111,11 @@ func init() {
 		helpStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightBlack))
 		selectedStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightGreen)).Bold(true)
 		unselectedStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightBlack))
+		
+		// Console output styles
+		warningStyle = lipgloss.NewStyle().Foreground(getColor(ansiYellow))
+		infoStyle = lipgloss.NewStyle().Foreground(getColor(ansiCyan))
+		successStyle = lipgloss.NewStyle().Foreground(getColor(ansiGreen)).Bold(true)
 	} else {
 		// NO_COLOR mode: use text formatting only
 		focusedStyle = lipgloss.NewStyle().Bold(true)
@@ -114,6 +124,11 @@ func init() {
 		helpStyle = lipgloss.NewStyle()
 		selectedStyle = lipgloss.NewStyle().Bold(true)
 		unselectedStyle = lipgloss.NewStyle()
+		
+		// Console output styles (NO_COLOR mode)
+		warningStyle = lipgloss.NewStyle()
+		infoStyle = lipgloss.NewStyle()
+		successStyle = lipgloss.NewStyle().Bold(true)
 	}
 }
 
@@ -255,6 +270,29 @@ func DefaultKibanaVersionConditionValue() string {
 	ver := semver.MustParse(install.DefaultStackVersion)
 	v, _ := ver.SetPrerelease("")
 	return "^" + v.String()
+}
+
+// Console output style functions for consistent coloring across the application
+// These respect the NO_COLOR environment variable and provide consistent styling
+
+// Warning renders text in warning color (yellow)
+func Warning(text string) string {
+	return warningStyle.Render(text)
+}
+
+// Info renders text in info color (cyan)
+func Info(text string) string {
+	return infoStyle.Render(text)
+}
+
+// Success renders text in success color (green, bold)
+func Success(text string) string {
+	return successStyle.Render(text)
+}
+
+// Error renders text in error color (red)
+func Error(text string) string {
+	return errorStyle.Render(text)
 }
 
 // Compile-time interface checks to ensure all prompt types implement the Prompt interface

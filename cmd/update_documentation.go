@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/elastic/elastic-package/internal/cobraext"
@@ -91,23 +90,19 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	localEndpoint := getConfigValue(profile, "LOCAL_LLM_ENDPOINT", "llm.local.endpoint", "")
 
 	if bedrockAPIKey == "" && googleAPIKey == "" && localEndpoint == "" {
-		// Use colors to highlight the manual instructions
-		yellow := color.New(color.FgYellow)
-		cyan := color.New(color.FgCyan)
-		green := color.New(color.FgGreen, color.Bold)
-
-		yellow.Println("AI agent is not available (no LLM provider API key set).")
+		// Use standardized TUI colors for consistent output
+		cmd.Println(tui.Warning("AI agent is not available (no LLM provider API key set)."))
 		cmd.Println()
-		cyan.Println("To update the documentation manually:")
-		green.Println("  1. Edit `_dev/build/docs/README.md`")
-		green.Println("  2. Run `elastic-package build`")
+		cmd.Println(tui.Info("To update the documentation manually:"))
+		cmd.Println(tui.Success("  1. Edit `_dev/build/docs/README.md`"))
+		cmd.Println(tui.Success("  2. Run `elastic-package build`"))
 		cmd.Println()
-		cyan.Println("For AI-powered documentation updates, configure one of these LLM providers:")
-		green.Println("  - Amazon Bedrock: Set BEDROCK_API_KEY or add llm.bedrock.api_key to profile config")
-		green.Println("  - Google AI Studio: Set GEMINI_API_KEY or add llm.gemini.api_key to profile config")
-		green.Println("  - Local LLM: Set LOCAL_LLM_ENDPOINT or add llm.local.endpoint to profile config")
+		cmd.Println(tui.Info("For AI-powered documentation updates, configure one of these LLM providers:"))
+		cmd.Println(tui.Success("  - Amazon Bedrock: Set BEDROCK_API_KEY or add llm.bedrock.api_key to profile config"))
+		cmd.Println(tui.Success("  - Google AI Studio: Set GEMINI_API_KEY or add llm.gemini.api_key to profile config"))
+		cmd.Println(tui.Success("  - Local LLM: Set LOCAL_LLM_ENDPOINT or add llm.local.endpoint to profile config"))
 		cmd.Println()
-		cyan.Println("Profile configuration: ~/.elastic-package/profiles/<profile>/config.yml")
+		cmd.Println(tui.Info("Profile configuration: ~/.elastic-package/profiles/<profile>/config.yml"))
 		return nil
 	}
 
