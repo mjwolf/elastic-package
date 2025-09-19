@@ -46,8 +46,8 @@ func NewViewer(title, content string) *Viewer {
 		maxLines: len(lines),
 		maxWidth: maxWidth,
 		width:    80,
-		height:   24,  // Increased default height
-		viewport: 18,  // Leave space for header and footer
+		height:   24, // Increased default height
+		viewport: 18, // Leave space for header and footer
 	}
 }
 
@@ -178,14 +178,14 @@ func (m *ViewerModel) View() string {
 	// Header with title and scroll position
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("15")).  // Bright white text
-		Background(lipgloss.Color("27")).  // Blue background
+		Foreground(lipgloss.Color("15")). // Bright white text
+		Background(lipgloss.Color("27")). // Blue background
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("86")).
 		BorderBottom(true).
-		Width(m.viewer.width - 4).  // Account for border and padding
-		MarginBottom(1).            // Add space after header
-		Padding(0, 2).              // Add horizontal padding
+		Width(m.viewer.width-4). // Account for border and padding
+		MarginBottom(1).         // Add space after header
+		Padding(0, 2).           // Add horizontal padding
 		Align(lipgloss.Center)
 
 	scrollInfo := ""
@@ -210,17 +210,17 @@ func (m *ViewerModel) View() string {
 	if scrollInfo != "" {
 		titleText = fmt.Sprintf("%s%s", m.viewer.title, scrollInfo)
 	}
-	
+
 	// Ensure title is not empty
 	if titleText == "" {
 		titleText = "Content Viewer"
 	}
-	
+
 	// Debug: ensure we always have a visible title
 	if strings.TrimSpace(titleText) == "" {
 		titleText = "📄 Document Viewer"
 	}
-	
+
 	b.WriteString(headerStyle.Render(titleText))
 	b.WriteString("\n")
 
@@ -278,7 +278,7 @@ func (m *ViewerModel) View() string {
 func ShowContent(title, content string) error {
 	viewer := NewViewer(title, content)
 	model := NewViewerModel(viewer)
-	
+
 	// Enable mouse support and alternate screen for better display
 	program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 

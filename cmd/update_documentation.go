@@ -94,7 +94,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		cmd.Println(tui.Warning("AI agent is not available (no LLM provider API key set)."))
 		cmd.Println()
 		cmd.Println(tui.Info("To update the documentation manually:"))
-		cmd.Println(tui.Success("  1. Edit `_dev/build/docs/README.md`"))
+		cmd.Println(tui.Success("  1. Edit `_dev/build/docs/README.md`. Please follow the documentation guidelines from https://www.elastic.co/docs/extend/integrations/documentation-guidelines."))
 		cmd.Println(tui.Success("  2. Run `elastic-package build`"))
 		cmd.Println()
 		cmd.Println(tui.Info("For AI-powered documentation updates, configure one of these LLM providers:"))

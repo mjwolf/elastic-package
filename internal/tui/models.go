@@ -94,7 +94,7 @@ var (
 	helpStyle       lipgloss.Style
 	selectedStyle   lipgloss.Style
 	unselectedStyle lipgloss.Style
-	
+
 	// Console output styles for consistent coloring across the application
 	warningStyle lipgloss.Style
 	infoStyle    lipgloss.Style
@@ -111,7 +111,7 @@ func init() {
 		helpStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightBlack))
 		selectedStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightGreen)).Bold(true)
 		unselectedStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightBlack))
-		
+
 		// Console output styles
 		warningStyle = lipgloss.NewStyle().Foreground(getColor(ansiYellow))
 		infoStyle = lipgloss.NewStyle().Foreground(getColor(ansiCyan))
@@ -124,7 +124,7 @@ func init() {
 		helpStyle = lipgloss.NewStyle()
 		selectedStyle = lipgloss.NewStyle().Bold(true)
 		unselectedStyle = lipgloss.NewStyle()
-		
+
 		// Console output styles (NO_COLOR mode)
 		warningStyle = lipgloss.NewStyle()
 		infoStyle = lipgloss.NewStyle()
@@ -301,4 +301,5 @@ var (
 	_ Prompt = &Select{}
 	_ Prompt = &Confirm{}
 	_ Prompt = &MultiSelect{}
+	_ Prompt = &TextArea{}
 )

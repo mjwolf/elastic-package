@@ -331,12 +331,23 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 			prompt = "You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis."
 
 		case "Request changes":
-			inputPrompt := tui.NewInput("What changes would you like to make?", "")
+			textareaPrompt := tui.NewTextArea("What changes would you like to make to the documentation?", "")
 
 			var changes string
-			err = tui.AskOne(inputPrompt, &changes)
+			err = tui.AskOne(textareaPrompt, &changes)
 			if err != nil {
+				// Check if user cancelled (pressed ESC)
+				if err.Error() == "cancelled by user" {
+					fmt.Println("⚠️  Changes request cancelled.")
+					continue // Go back to the main menu
+				}
 				return fmt.Errorf("prompt failed: %w", err)
+			}
+
+			// Check if no changes were provided
+			if strings.TrimSpace(changes) == "" {
+				fmt.Println("⚠️  No changes specified. Please try again.")
+				continue
 			}
 
 			prompt = fmt.Sprintf("Please make the following changes to the documentation:\n\n%s", changes)
