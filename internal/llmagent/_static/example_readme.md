@@ -105,10 +105,6 @@ For more information on architectures that can be used for scaling this integrat
 
 {{event "panos"}}
 
-### Inputs
-
-These inputs can be used in this integration:
-
-* [tcp](https://www.elastic.co/docs/reference/integrations/tcp)
-* [udp](https://www.elastic.co/docs/reference/integrations/udp)
-* [logfile](https://www.elastic.co/docs/reference/integrations/filestream)
+### Inputs used
+{{/* All inputs used by this package will be automatically listed here. */}}
+{{ inputDocs }}

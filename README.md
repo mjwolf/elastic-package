@@ -644,13 +644,26 @@ _Context: global_
 
 Use this command to update package resources.
 
-The command can help update various aspects of a package such as documentation, configuration files, and other resources.
+The command can help update existing resources in a package. Currently only documentation is supported.
 
 ### `elastic-package update documentation`
 
 _Context: global_
 
-Use this command to update package documentation using an AI agent or get manual instructions.
+Use this command to update package documentation using an AI agent or to get manual instructions for update.
+
+The AI agent will:
+1. Analyze your package structure, data streams, and configuration
+2. Generate comprehensive documentation following Elastic's templates
+3. Allow you to review and request changes interactively (or automatically accept in non-interactive mode)
+4. Create or update the README.md file in /_dev/build/docs/
+
+After the AI agent has generated updated documentation, you will be able to review it, and optionally, provide additional prompts that will be given
+to the AI agent to request changes to the generated documentation.
+
+Use --non-interactive to skip all prompts and automatically accept the first result from the LLM.
+
+If no LLM provider is configured, this command will print instructions for updating the documentation manually.
 
 The command supports multiple LLM providers and will automatically use the first available provider based on 
 environment variables or profile configuration. It analyzes your package and updates the /_dev/build/docs/README.md file with comprehensive 
@@ -664,17 +677,7 @@ Configuration options for LLM providers (environment variables or profile config
 - GEMINI_MODEL / llm.gemini.model: Model ID (defaults to gemini-2.5-pro)
 - LOCAL_LLM_ENDPOINT / llm.local.endpoint: Endpoint for local LLM server
 - LOCAL_LLM_MODEL / llm.local.model: Model name for local LLM (defaults to llama2)
-- LOCAL_LLM_API_KEY / llm.local.api_key: API key for local LLM (optional)
-
-Profile configuration file: ~/.elastic-package/profiles/<profile>/config.yml
-
-The AI agent will:
-1. Analyze your package structure, data streams, and configuration
-2. Generate comprehensive documentation following Elastic's templates
-3. Allow you to review and request changes interactively (or automatically accept in non-interactive mode)
-4. Create or update the README.md file in /_dev/build/docs/
-
-Use --non-interactive to skip all prompts and automatically accept the first result from the LLM.
+- LOCAL_LLM_API_KEY / llm.local.api_key: API key for local LLM (optional).
 
 ### `elastic-package version`
 
@@ -730,18 +733,21 @@ The following settings are available per profile:
 
 ### AI-powered Documentation Configuration
 
-The `elastic-package update documentation` command supports AI-powered documentation generation using various LLM providers. You can configure these providers through profile settings as an alternative to environment variables:
+The `elastic-package update documentation` command supports AI-powered documentation generation using various LLM providers. With this command, you can connect
+with an LLM provider, which will assist you in updating documentation, by generating a version which will follow the recommended template, and will fill in documentation sections. Please review the generated documention for accuracy and correctness before finalizing the documentation.
+
+When using AI-powered document generation, all files within the package directory may be sent to the LLM provider.
+
+You can configure the LLM providers through profile settings as an alternative to environment variables:
 
 * `llm.bedrock.api_key`: API key for Amazon Bedrock LLM services
 * `llm.bedrock.region`: AWS region for Bedrock services (defaults to `us-east-1`)
 * `llm.bedrock.model`: Bedrock model ID (defaults to `anthropic.claude-3-5-sonnet-20241022-v2:0`)
 * `llm.gemini.api_key`: API key for Gemini LLM services  
 * `llm.gemini.model`: Gemini model ID (defaults to `gemini-2.5-pro`)
-* `llm.local.endpoint`: Endpoint URL for local OpenAI-compatible LLM servers (required for local LLM)
+* `llm.local.endpoint`: Endpoint URL for local OpenAI-compatible LLM servers
 * `llm.local.model`: Model name for local LLM servers (defaults to `llama2`)
 * `llm.local.api_key`: API key for local LLM servers (optional, if authentication is required)
-
-**Configuration Priority:** Environment variables take precedence over profile configuration, which takes precedence over default values.
 
 **Usage Examples:**
 
@@ -752,7 +758,7 @@ elastic-package update documentation
 # Use specific profile with LLM configuration
 elastic-package update documentation --profile production
 
-# Run non-interactively (skip confirmation prompt)
+# Run non-interactively (skips the confirmation prompt, and use the first generated result from the LLM)
 elastic-package update documentation --non-interactive
 ```
 
@@ -821,7 +827,7 @@ There are available some environment variables that could be used to change some
     - `BEDROCK_MODEL`: Bedrock model ID (defaults to `anthropic.claude-3-5-sonnet-20241022-v2:0`)
     - `GEMINI_API_KEY`: API key for Gemini LLM services
     - `GEMINI_MODEL`: Gemini model ID (defaults to `gemini-2.5-pro`)
-    - `LOCAL_LLM_ENDPOINT`: Endpoint URL for local OpenAI-compatible LLM servers (e.g., Ollama, LocalAI)
+    - `LOCAL_LLM_ENDPOINT`: Endpoint URL for local OpenAI-compatible LLM servers.
     - `LOCAL_LLM_MODEL`: Model name for local LLM servers (defaults to `llama2`)
     - `LOCAL_LLM_API_KEY`: API key for local LLM servers (optional, if authentication is required)
 
