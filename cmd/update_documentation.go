@@ -18,7 +18,20 @@ import (
 	"github.com/elastic/elastic-package/internal/tui"
 )
 
-const updateDocumentationLongDescription = `Use this command to update package documentation using an AI agent or get manual instructions.
+const updateDocumentationLongDescription = `Use this command to update package documentation using an AI agent or to get manual instructions for update.
+
+The AI agent will:
+1. Analyze your package structure, data streams, and configuration
+2. Generate comprehensive documentation following Elastic's templates
+3. Allow you to review and request changes interactively (or automatically accept in non-interactive mode)
+4. Create or update the README.md file in /_dev/build/docs/
+
+After the AI agent has generated updated documentation, you will be able to review it, and optionally, provide additional prompts that will be given
+to the AI agent to request changes to the generated documentation.
+
+Use --non-interactive to skip all prompts and automatically accept the first result from the LLM.
+
+If no LLM provider is configured, this command will print instructions for updating the documentation manually.
 
 The command supports multiple LLM providers and will automatically use the first available provider based on 
 environment variables or profile configuration. It analyzes your package and updates the /_dev/build/docs/README.md file with comprehensive 
@@ -32,17 +45,9 @@ Configuration options for LLM providers (environment variables or profile config
 - GEMINI_MODEL / llm.gemini.model: Model ID (defaults to gemini-2.5-pro)
 - LOCAL_LLM_ENDPOINT / llm.local.endpoint: Endpoint for local LLM server
 - LOCAL_LLM_MODEL / llm.local.model: Model name for local LLM (defaults to llama2)
-- LOCAL_LLM_API_KEY / llm.local.api_key: API key for local LLM (optional)
+- LOCAL_LLM_API_KEY / llm.local.api_key: API key for local LLM (optional)`
 
-Profile configuration file: ~/.elastic-package/profiles/<profile>/config.yml
 
-The AI agent will:
-1. Analyze your package structure, data streams, and configuration
-2. Generate comprehensive documentation following Elastic's templates
-3. Allow you to review and request changes interactively (or automatically accept in non-interactive mode)
-4. Create or update the README.md file in /_dev/build/docs/
-
-Use --non-interactive to skip all prompts and automatically accept the first result from the LLM.`
 
 // getConfigValue retrieves a configuration value with fallback from environment variable to profile config
 func getConfigValue(profile *profile.Profile, envVar, configKey, defaultValue string) string {
@@ -60,8 +65,6 @@ func getConfigValue(profile *profile.Profile, envVar, configKey, defaultValue st
 }
 
 func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
-	cmd.Println("Update package documentation with AI agent")
-
 	packageRoot, found, err := packages.FindPackageRoot()
 	if err != nil {
 		return fmt.Errorf("locating package root failed: %w", err)
@@ -69,8 +72,6 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 	if !found {
 		return errors.New("package root not found, you can only update documentation in the package context")
 	}
-
-	cmd.Printf("Package root found: %s\n", packageRoot)
 
 	// Check for non-interactive flag
 	nonInteractive, err := cmd.Flags().GetBool("non-interactive")
@@ -94,13 +95,13 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		cmd.Println(tui.Warning("AI agent is not available (no LLM provider API key set)."))
 		cmd.Println()
 		cmd.Println(tui.Info("To update the documentation manually:"))
-		cmd.Println(tui.Success("  1. Edit `_dev/build/docs/README.md`. Please follow the documentation guidelines from https://www.elastic.co/docs/extend/integrations/documentation-guidelines."))
-		cmd.Println(tui.Success("  2. Run `elastic-package build`"))
+		cmd.Println(tui.Info("  1. Edit `_dev/build/docs/README.md`. Please follow the documentation guidelines from https://www.elastic.co/docs/extend/integrations/documentation-guidelines."))
+		cmd.Println(tui.Info("  2. Run `elastic-package build`"))
 		cmd.Println()
 		cmd.Println(tui.Info("For AI-powered documentation updates, configure one of these LLM providers:"))
-		cmd.Println(tui.Success("  - Amazon Bedrock: Set BEDROCK_API_KEY or add llm.bedrock.api_key to profile config"))
-		cmd.Println(tui.Success("  - Gemini: Set GEMINI_API_KEY or add llm.gemini.api_key to profile config"))
-		cmd.Println(tui.Success("  - Local LLM: Set LOCAL_LLM_ENDPOINT or add llm.local.endpoint to profile config"))
+		cmd.Println(tui.Info("  - Amazon Bedrock: Set BEDROCK_API_KEY or add llm.bedrock.api_key to profile config"))
+		cmd.Println(tui.Info("  - Gemini: Set GEMINI_API_KEY or add llm.gemini.api_key to profile config"))
+		cmd.Println(tui.Info("  - Local LLM: Set LOCAL_LLM_ENDPOINT or add llm.local.endpoint to profile config"))
 		cmd.Println()
 		cmd.Println(tui.Info("Profile configuration: ~/.elastic-package/profiles/<profile>/config.yml"))
 		return nil
@@ -134,6 +135,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 			APIKey:  bedrockAPIKey,
 			Region:  region,
 			ModelID: modelID,
+			MaxTokens: 4096,
 		})
 		cmd.Printf("Using Amazon Bedrock provider with region: %s, model: %s\n", region, modelID)
 	} else if googleAPIKey != "" {
@@ -152,6 +154,8 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 			APIKey:   localAPIKey,
 		})
 		cmd.Printf("Using Local LLM provider with endpoint: %s, model: %s\n", localEndpoint, modelID)
+	} else {
+		return fmt.Errorf("Unknown LLM provider selected")
 	}
 
 	// Create the documentation agent

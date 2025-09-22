@@ -60,7 +60,7 @@ Introduction to the package`,
 			err := createReadmeFile(c.packageRoot, c.readmeTemplateContents)
 			require.NoError(t, err)
 
-			rendered, isTemplate, err := generateReadme(c.filename, c.packageRoot)
+			rendered, isTemplate, err := GenerateReadme(c.filename, c.packageRoot)
 			require.NoError(t, err)
 
 			if c.readmeTemplateContents != "" {

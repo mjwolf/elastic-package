@@ -180,17 +180,3 @@ Tool{
 }
 ```
 
-## Security
-
-- All file operations are restricted to the package directory
-- Path traversal attacks are prevented
-- Tools validate input parameters
-- API keys are handled securely via environment variables
-
-## Future Enhancements
-
-- Support for additional LLM providers (OpenAI, Anthropic, local models)
-- Additional tools for package analysis
-- Templates for different documentation types
-- Batch processing for multiple packages
-- Integration with CI/CD pipelines

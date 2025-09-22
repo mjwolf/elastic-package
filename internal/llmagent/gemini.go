@@ -30,6 +30,50 @@ type GeminiConfig struct {
 	Endpoint string
 }
 
+// Gemini specific types for API communication
+type googleRequest struct {
+	Contents         []googleContent         `json:"contents"`
+	Tools            []googleTool            `json:"tools,omitempty"`
+	GenerationConfig *googleGenerationConfig `json:"generationConfig,omitempty"`
+}
+
+type googleContent struct {
+	Parts []googlePart `json:"parts"`
+}
+
+type googlePart struct {
+	Text         string              `json:"text,omitempty"`
+	FunctionCall *googleFunctionCall `json:"functionCall,omitempty"`
+}
+
+type googleFunctionCall struct {
+	Name string                 `json:"name"`
+	Args map[string]interface{} `json:"args"`
+}
+
+type googleTool struct {
+	FunctionDeclarations []googleFunctionDeclaration `json:"functionDeclarations"`
+}
+
+type googleFunctionDeclaration struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"`
+}
+
+type googleGenerationConfig struct {
+	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
+}
+
+type googleResponse struct {
+	Candidates []googleCandidate `json:"candidates"`
+}
+
+type googleCandidate struct {
+	Content      googleContent `json:"content"`
+	FinishReason string        `json:"finishReason"`
+}
+
 // NewGeminiProvider creates a new Gemini LLM provider
 func NewGeminiProvider(config GeminiConfig) *GeminiProvider {
 	if config.ModelID == "" {
@@ -181,7 +225,6 @@ func (g *GeminiProvider) GenerateResponse(ctx context.Context, prompt string, to
 		default:
 			logger.Debugf("Gemini API returned unexpected finish reason: %s - treating as completed", candidate.FinishReason)
 			// For unknown finish reasons, mark as finished to prevent infinite loops
-			// This is especially important for gemini-2.5-flash which has known instability issues
 			response.Finished = true
 		}
 
@@ -209,53 +252,16 @@ func (g *GeminiProvider) GenerateResponse(ctx context.Context, prompt string, to
 
 		// Join all text parts (only override if we don't have error content from finish reason)
 		if len(textParts) > 0 && response.Content == "" {
-			response.Content = textParts[0] // For simplicity, take the first text part
+			// Concatenate all text parts to preserve complete response
+			response.Content = ""
+			for i, text := range textParts {
+				if i > 0 {
+					response.Content += "\n" // Add newline between parts for readability
+				}
+				response.Content += text
+			}
 		}
 	}
 
 	return response, nil
-}
-
-// Gemini specific types for API communication
-type googleRequest struct {
-	Contents         []googleContent         `json:"contents"`
-	Tools            []googleTool            `json:"tools,omitempty"`
-	GenerationConfig *googleGenerationConfig `json:"generationConfig,omitempty"`
-}
-
-type googleContent struct {
-	Parts []googlePart `json:"parts"`
-}
-
-type googlePart struct {
-	Text         string              `json:"text,omitempty"`
-	FunctionCall *googleFunctionCall `json:"functionCall,omitempty"`
-}
-
-type googleFunctionCall struct {
-	Name string                 `json:"name"`
-	Args map[string]interface{} `json:"args"`
-}
-
-type googleTool struct {
-	FunctionDeclarations []googleFunctionDeclaration `json:"functionDeclarations"`
-}
-
-type googleFunctionDeclaration struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Parameters  map[string]interface{} `json:"parameters"`
-}
-
-type googleGenerationConfig struct {
-	MaxOutputTokens int `json:"maxOutputTokens,omitempty"`
-}
-
-type googleResponse struct {
-	Candidates []googleCandidate `json:"candidates"`
-}
-
-type googleCandidate struct {
-	Content      googleContent `json:"content"`
-	FinishReason string        `json:"finishReason"`
 }

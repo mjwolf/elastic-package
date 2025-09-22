@@ -21,6 +21,7 @@ type BedrockProvider struct {
 	region   string
 	modelID  string
 	endpoint string
+	maxTokens int
 	client   *http.Client
 }
 
@@ -30,6 +31,37 @@ type BedrockConfig struct {
 	Region   string
 	ModelID  string
 	Endpoint string
+	MaxTokens int
+}
+
+// Bedrock-specific types for API communication
+type bedrockRequest struct {
+	Messages  []bedrockMessage `json:"messages"`
+	MaxTokens int              `json:"max_tokens"`
+	Tools     []bedrockTool    `json:"tools,omitempty"`
+}
+
+type bedrockMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type bedrockTool struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	InputSchema map[string]interface{} `json:"input_schema"`
+}
+
+type bedrockResponse struct {
+	Content    string            `json:"content"`
+	StopReason string            `json:"stop_reason"`
+	ToolCalls  []bedrockToolCall `json:"tool_calls,omitempty"`
+}
+
+type bedrockToolCall struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Input string `json:"input"`
 }
 
 // NewBedrockProvider creates a new Bedrock LLM provider
@@ -43,6 +75,9 @@ func NewBedrockProvider(config BedrockConfig) *BedrockProvider {
 	if config.Endpoint == "" {
 		config.Endpoint = fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", config.Region)
 	}
+	if config.MaxTokens == 0 {
+		config.MaxTokens = 4096
+	}
 
 	// Debug logging with masked API key for security
 	logger.Debugf("Creating Bedrock provider with model: %s, region: %s, endpoint: %s",
@@ -54,6 +89,7 @@ func NewBedrockProvider(config BedrockConfig) *BedrockProvider {
 		region:   config.Region,
 		modelID:  config.ModelID,
 		endpoint: config.Endpoint,
+		maxTokens: config.MaxTokens,
 		client: &http.Client{
 			Timeout: 60 * time.Second,
 		},
@@ -85,7 +121,7 @@ func (b *BedrockProvider) GenerateResponse(ctx context.Context, prompt string, t
 				Content: prompt,
 			},
 		},
-		MaxTokens: 4096,
+		MaxTokens: b.maxTokens,
 		Tools:     bedrockTools,
 	}
 
@@ -150,32 +186,3 @@ func (b *BedrockProvider) GenerateResponse(ctx context.Context, prompt string, t
 	return response, nil
 }
 
-// Bedrock-specific types for API communication
-type bedrockRequest struct {
-	Messages  []bedrockMessage `json:"messages"`
-	MaxTokens int              `json:"max_tokens"`
-	Tools     []bedrockTool    `json:"tools,omitempty"`
-}
-
-type bedrockMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type bedrockTool struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	InputSchema map[string]interface{} `json:"input_schema"`
-}
-
-type bedrockResponse struct {
-	Content    string            `json:"content"`
-	StopReason string            `json:"stop_reason"`
-	ToolCalls  []bedrockToolCall `json:"tool_calls,omitempty"`
-}
-
-type bedrockToolCall struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Input string `json:"input"`
-}

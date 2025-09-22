@@ -15,7 +15,7 @@ import (
 
 const updateLongDescription = `Use this command to update package resources.
 
-The command can help update various aspects of a package such as documentation, configuration files, and other resources.`
+The command can help update existing resources in a package. Currently only documentation is supported.`
 
 func setupUpdateCommand() *cobraext.Command {
 	updateDocumentationCmd := &cobra.Command{

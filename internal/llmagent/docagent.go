@@ -20,6 +20,9 @@ import (
 	"github.com/elastic/elastic-package/internal/tui"
 )
 
+// The embedded example_readme is an example of a high-quality integration readme, following the static template archetype,
+// That helps the LLM follow an example.
+//
 //go:embed _static/example_readme.md
 var exampleReadmeContent string
 
@@ -29,7 +32,6 @@ type DocumentationAgent struct {
 	packageRoot           string
 	templateContent       string
 	originalReadmeContent *string // Stores original README content for restoration on cancel
-	originalReadmeExists  bool    // Tracks if README existed before we started
 }
 
 // NewDocumentationAgent creates a new documentation agent
@@ -72,7 +74,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		// Execute the task once
 		fmt.Println("🤖 LLM Agent is working...")
 
-		result, err := d.agent.ExecuteTaskWithAnimation(ctx, prompt, nil)
+		result, err := d.agent.ExecuteTask(ctx, prompt)
 
 		if err != nil {
 			fmt.Println("❌ Agent task failed")
@@ -105,20 +107,20 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 			return fmt.Errorf("LLM agent encountered an error: %s", result.FinalContent)
 		}
 
-		// Check if README.md was created/updated
-		readmeExists := d.checkReadmeExists()
-		if readmeExists {
+		// Check if README.md was updated
+		readmeUpdated := d.checkReadmeUpdated()
+		if readmeUpdated {
 			content, err := d.readCurrentReadme()
 			if err == nil && content != "" {
-				fmt.Println("\n📄 README.md was created successfully!")
+				fmt.Println("\n📄 README.md was updated successfully!")
 				fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
 				return nil
 			}
 		}
 
-		// If no README was created, try once more with a specific prompt
-		fmt.Println("⚠️  No README.md was created. Trying again with specific instructions...")
-		specificPrompt := "You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis. This is required to complete the task."
+		// If no README was updated, try once more with a specific prompt
+		fmt.Println("⚠️  No README.md was updated. Trying again with specific instructions...")
+		specificPrompt := "You haven't updated a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis. This is required to complete the task."
 
 		_, err = d.agent.ExecuteTask(ctx, specificPrompt)
 		if err != nil {
@@ -126,11 +128,11 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		}
 
 		// Check again
-		readmeExists = d.checkReadmeExists()
-		if readmeExists {
+		readmeUpdated = d.checkReadmeUpdated()
+		if readmeUpdated {
 			content, err := d.readCurrentReadme()
 			if err == nil && content != "" {
-				fmt.Println("\n📄 README.md was created on second attempt!")
+				fmt.Println("\n📄 README.md was updated on second attempt!")
 				fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
 				return nil
 			}
@@ -149,7 +151,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 		fmt.Println("🤖 LLM Agent is working...")
 
 		// Execute the task
-		result, err := d.agent.ExecuteTaskWithAnimation(ctx, prompt, nil)
+		result, err := d.agent.ExecuteTask(ctx, prompt)
 
 		if err != nil {
 			fmt.Println("❌ Agent task failed")
@@ -168,12 +170,6 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 				i, entry.Type, len(entry.Content))
 			logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
 		}
-
-		// Show the result
-		fmt.Println("\n📝 Agent Response:")
-		fmt.Println(strings.Repeat("-", 50))
-		fmt.Println(result.FinalContent)
-		fmt.Println(strings.Repeat("-", 50))
 
 		// Check if the response indicates an error occurred
 		if isErrorResponse(result.FinalContent) {
@@ -202,37 +198,16 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 			continue
 		}
 
-		// Check if README.md was created/updated and show processed content in scrollable viewer
-		readmeExists := d.checkReadmeExists()
-		if readmeExists {
+		// Check if README.md was updated and show processed content in scrollable viewer
+		readmeUpdated := d.checkReadmeUpdated()
+		if readmeUpdated {
 			sourceContent, err := d.readCurrentReadme()
 			if err == nil && sourceContent != "" {
-				fmt.Printf("\n📊 README.md source stats: %d characters, %d lines\n", len(sourceContent), strings.Count(sourceContent, "\n")+1)
-				fmt.Println("📄 Press any key to view the processed README content (as it would appear after elastic-package build)...")
-
 				// Generate the processed README using the same logic as elastic-package build
-				renderedContent, shouldBeRendered, err := docs.GenerateReadmePreview("README.md", d.packageRoot)
-				if err != nil {
-					fmt.Printf("⚠️  Failed to generate processed README: %v\n", err)
-					fmt.Println("📄 Showing source content instead:")
-
-					// Fallback to source content
-					title := "📄 Source README.md (_dev/build/docs/README.md)"
-					if err := tui.ShowContent(title, sourceContent); err != nil {
-						fmt.Println("\n📄 Source README.md content (_dev/build/docs/README.md):")
-						fmt.Println(strings.Repeat("=", 70))
-						fmt.Println(sourceContent)
-						fmt.Println(strings.Repeat("=", 70))
-					}
-				} else if !shouldBeRendered {
-					// Static file - show source content
-					title := "📄 README.md (static file - no template processing)"
-					if err := tui.ShowContent(title, sourceContent); err != nil {
-						fmt.Println("\n📄 README.md content (static file):")
-						fmt.Println(strings.Repeat("=", 70))
-						fmt.Println(sourceContent)
-						fmt.Println(strings.Repeat("=", 70))
-					}
+				renderedContent, shouldBeRendered, err := docs.GenerateReadme("README.md", d.packageRoot)
+				if err != nil || !shouldBeRendered {
+					fmt.Println("\n⚠️  The generated README.md could not be rendered.")
+					fmt.Println("It's recommended that you do not accept this version (ask for revisions or cancel).")
 				} else {
 					// Show the processed/rendered content
 					processedContentStr := string(renderedContent)
@@ -241,7 +216,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 					title := "📄 Processed README.md (as generated by elastic-package build)"
 					if err := tui.ShowContent(title, processedContentStr); err != nil {
 						// Fallback to simple print if viewer fails
-						fmt.Println("\n📄 Processed README.md content (as generated by elastic-package build):")
+						fmt.Printf("\n%s:\n", title)
 						fmt.Println(strings.Repeat("=", 70))
 						fmt.Println(processedContentStr)
 						fmt.Println(strings.Repeat("=", 70))
@@ -251,7 +226,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 				fmt.Println("\n⚠️  README.md file exists but could not be read or is empty")
 			}
 		} else {
-			fmt.Println("\n⚠️  No README.md file found at _dev/build/docs/README.md")
+			fmt.Println("\n⚠️  README.md file not updated")
 		}
 
 		// Ask user what to do next
@@ -269,27 +244,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 		switch action {
 		case "Accept and finalize":
-			// Always try to write content from LLM response first, then check if file exists
-			if d.tryWriteReadmeFromResponse(result) {
-				// Validate preserved sections if we had original content
-				if d.originalReadmeContent != nil {
-					if newContent, err := d.readCurrentReadme(); err == nil {
-						warnings := d.validatePreservedSections(*d.originalReadmeContent, newContent)
-						if len(warnings) > 0 {
-							fmt.Println("⚠️  Warning: Some human-edited sections may not have been preserved:")
-							for _, warning := range warnings {
-								fmt.Printf("   - %s\n", warning)
-							}
-							fmt.Println("   Please review the documentation to ensure important content wasn't lost.")
-						}
-					}
-				}
-				fmt.Println("✅ Documentation created from LLM response and saved!")
-				return nil
-			}
-
-			// Check if README was already created by the LLM using tools
-			if readmeExists {
+			if readmeUpdated {
 				// Validate that human-edited sections were preserved if we had original content
 				if d.originalReadmeContent != nil {
 					if newContent, err := d.readCurrentReadme(); err == nil {
@@ -310,7 +265,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 
 			// No content found in response and no file exists
 			// Ask user if they want to continue or exit anyway
-			continuePrompt := tui.NewSelect("No README.md file was created. What would you like to do?", []string{
+			continuePrompt := tui.NewSelect("README.md file wasn't updated. What would you like to do?", []string{
 				"Try again",
 				"Exit anyway",
 			}, "Try again")
@@ -328,7 +283,7 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 			}
 
 			fmt.Println("🔄 Trying again to create README.md...")
-			prompt = d.buildRevisionPrompt("You haven't created a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis.")
+			prompt = d.buildRevisionPrompt("You haven't written a README.md file yet. Please write the README.md file in the _dev/build/docs/ directory based on your analysis.")
 
 		case "Request changes":
 			changes, err := tui.AskTextArea("What changes would you like to make to the documentation?")
@@ -389,7 +344,6 @@ Your Step-by-Step Process:
         * manifest.yml: For top-level metadata, owner, license, and supported Elasticsearch versions.
         * data_stream/*/manifest.yml: To compile a list of all data streams, their types (logs, metrics), and a brief description of the data each collects.
         * data_stream/*/fields/fields.yml: To understand the data schema and important fields. Mentioning a few key fields can be helpful for users.
-        * _dev/build/docs/configuration.yml: For default configuration options, variable names, and descriptions.
 
 3.  External Information Gathering:
     * Use your web search tool to find the official documentation for the service or technology this integration supports (e.g., "NGINX logs setup," "AWS S3 access logs format").
@@ -404,6 +358,10 @@ Your Step-by-Step Process:
     * Read through your generated README to ensure it is clear, accurate, and easy to follow.
     * Verify that all critical directives (file restrictions, content preservation) have been followed.
     * Confirm that the tone and style align with the provided high-quality example.
+
+6. Write the results:
+    * Write the generated README to _dev/build/docs/README.md.
+    * Do not return the results as a response in this conversation.
 
 Style and Content Guidance:
 
@@ -430,11 +388,30 @@ Please begin. Start with the "Initial Analysis" step.`,
 		exampleReadmeContent)
 }
 
-// checkReadmeExists checks if README.md exists in _dev/build/docs/
-func (d *DocumentationAgent) checkReadmeExists() bool {
+// checkReadmeUpdated checks if README.md has been updated by comparing current content to originalReadmeContent
+func (d *DocumentationAgent) checkReadmeUpdated() bool {
 	readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
-	_, err := os.Stat(readmePath)
-	return err == nil
+
+	// Check if file exists
+	if _, err := os.Stat(readmePath); err != nil {
+		return false
+	}
+
+	// Read current content
+	currentContent, err := os.ReadFile(readmePath)
+	if err != nil {
+		return false
+	}
+
+	currentContentStr := string(currentContent)
+
+	// If there was no original content, any new content means it's updated
+	if d.originalReadmeContent == nil {
+		return currentContentStr != ""
+	}
+
+	// Compare current content with original content
+	return currentContentStr != *d.originalReadmeContent
 }
 
 // readCurrentReadme reads the current README.md content
@@ -445,127 +422,6 @@ func (d *DocumentationAgent) readCurrentReadme() (string, error) {
 		return "", err
 	}
 	return string(content), nil
-}
-
-// tryWriteReadmeFromResponse attempts to extract README content from the LLM response and write it to disk
-func (d *DocumentationAgent) tryWriteReadmeFromResponse(result *TaskResult) bool {
-	if result == nil || result.FinalContent == "" {
-		return false
-	}
-
-	// Look for markdown content patterns in the response
-	content := result.FinalContent
-
-	// Check if the response contains what looks like README content
-	// Look for markdown headers, typical README sections, etc.
-	if strings.Contains(content, "# ") ||
-		strings.Contains(content, "## ") ||
-		strings.Contains(content, "### ") ||
-		(strings.Contains(content, "Integration") && strings.Contains(content, "Elastic")) {
-
-		// Clean up the content - remove any assistant commentary
-		readmeContent := d.extractReadmeContent(content)
-
-		if readmeContent != "" {
-			// Write to the README file
-			readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
-
-			// Create directory if it doesn't exist
-			dir := filepath.Dir(readmePath)
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				fmt.Printf("⚠️  Failed to create directory: %v\n", err)
-				return false
-			}
-
-			// Write the file
-			if err := os.WriteFile(readmePath, []byte(readmeContent), 0o644); err != nil {
-				fmt.Printf("⚠️  Failed to write README file: %v\n", err)
-				return false
-			}
-
-			fmt.Printf("📝 Extracted and saved README content (%d characters)\n", len(readmeContent))
-			return true
-		}
-	}
-
-	return false
-}
-
-// extractReadmeContent cleans up and extracts the actual README content from LLM response
-func (d *DocumentationAgent) extractReadmeContent(content string) string {
-	lines := strings.Split(content, "\n")
-	var readmeLines []string
-	inCodeBlock := false
-	foundReadmeStart := false
-
-	for _, line := range lines {
-		// Skip lines that look like assistant commentary
-		if strings.HasPrefix(line, "I ") ||
-			strings.HasPrefix(line, "I'll ") ||
-			strings.HasPrefix(line, "Here's ") ||
-			strings.HasPrefix(line, "Based on ") {
-			continue
-		}
-
-		// Handle code blocks
-		if strings.HasPrefix(line, "```") {
-			inCodeBlock = !inCodeBlock
-			if strings.Contains(line, "markdown") {
-				foundReadmeStart = true
-				continue
-			}
-			if foundReadmeStart && !inCodeBlock {
-				// End of markdown code block - we got our content
-				break
-			}
-			continue
-		}
-
-		// If we're in a markdown code block, collect the content
-		if inCodeBlock && foundReadmeStart {
-			readmeLines = append(readmeLines, line)
-			continue
-		}
-
-		// If not in code block, look for direct markdown content
-		if !inCodeBlock && (strings.HasPrefix(line, "# ") || foundReadmeStart) {
-			foundReadmeStart = true
-			readmeLines = append(readmeLines, line)
-		}
-	}
-
-	// If no markdown code block was found, try to extract direct content
-	if len(readmeLines) == 0 {
-		foundReadmeStart = false
-		for _, line := range lines {
-			// Look for the start of README content
-			if strings.HasPrefix(line, "# ") &&
-				(strings.Contains(line, "Integration") || strings.Contains(line, "Package")) {
-				foundReadmeStart = true
-			}
-
-			if foundReadmeStart {
-				// Skip obvious assistant commentary
-				if strings.HasPrefix(line, "I ") ||
-					strings.HasPrefix(line, "This ") ||
-					strings.HasPrefix(line, "Based on ") ||
-					strings.HasPrefix(line, "Here's ") {
-					continue
-				}
-				readmeLines = append(readmeLines, line)
-			}
-		}
-	}
-
-	result := strings.Join(readmeLines, "\n")
-	result = strings.TrimSpace(result)
-
-	// Ensure it looks like valid README content
-	if len(result) > 100 && (strings.Contains(result, "# ") || strings.Contains(result, "## ")) {
-		return result
-	}
-
-	return ""
 }
 
 // validatePreservedSections checks if human-edited sections are preserved in the new content
@@ -595,7 +451,7 @@ func isErrorResponse(content string) bool {
 		"Something went wrong",
 		"There was an error",
 		"I'm having trouble",
-		"Failed to",
+		"I failed to",
 		"Error occurred",
 		"Task did not complete within maximum iterations",
 	}
@@ -667,7 +523,7 @@ CURRENT TASK: Make specific revisions to the existing documentation based on use
 
 Package Information:
 * Package Name: %s
-* Title: %s  
+* Title: %s
 * Type: %s
 * Version: %s
 * Description: %s
@@ -684,6 +540,7 @@ Your Step-by-Step Process:
 3. Use available tools to gather any additional information needed
 4. Make the specific changes requested while preserving existing good content
 5. Ensure the result is comprehensive and follows Elastic documentation standards
+6. Write the generated README to _dev/build/docs/README.md
 
 User-Requested Changes:
 %s
@@ -711,8 +568,6 @@ func (d *DocumentationAgent) backupOriginalReadme() {
 
 	// Check if README exists
 	if _, err := os.Stat(readmePath); err == nil {
-		d.originalReadmeExists = true
-
 		// Read and store the original content
 		if content, err := os.ReadFile(readmePath); err == nil {
 			contentStr := string(content)
@@ -722,7 +577,6 @@ func (d *DocumentationAgent) backupOriginalReadme() {
 			fmt.Printf("⚠️  Could not read original README.md for backup: %v\n", err)
 		}
 	} else {
-		d.originalReadmeExists = false
 		d.originalReadmeContent = nil
 		fmt.Println("📋 No existing README.md found - will create new one")
 	}
@@ -732,14 +586,14 @@ func (d *DocumentationAgent) backupOriginalReadme() {
 func (d *DocumentationAgent) restoreOriginalReadme() {
 	readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
 
-	if d.originalReadmeExists && d.originalReadmeContent != nil {
+	if d.originalReadmeContent != nil {
 		// Restore original content
 		if err := os.WriteFile(readmePath, []byte(*d.originalReadmeContent), 0o644); err != nil {
 			fmt.Printf("⚠️  Failed to restore original README.md: %v\n", err)
 		} else {
 			fmt.Printf("🔄 Restored original README.md (%d characters)\n", len(*d.originalReadmeContent))
 		}
-	} else if !d.originalReadmeExists {
+	} else {
 		// No original file existed, so remove any file that was created
 		if err := os.Remove(readmePath); err != nil {
 			if !os.IsNotExist(err) {

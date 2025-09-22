@@ -27,8 +27,61 @@ type LocalProvider struct {
 type LocalConfig struct {
 	Endpoint string
 	ModelID  string
-	APIKey   string // Optional for local servers
+	APIKey   string
 }
+
+// OpenAI-compatible types for API communication
+type request struct {
+	Model       string          `json:"model"`
+	Messages    []message `json:"messages"`
+	MaxTokens   int             `json:"max_tokens,omitempty"`
+	Temperature float64         `json:"temperature,omitempty"`
+	Stream      bool            `json:"stream,omitempty"`
+	Tools       []tool    `json:"tools,omitempty"`
+	ToolChoice  string          `json:"tool_choice,omitempty"`
+}
+
+type response struct {
+	Choices []choice `json:"choices"`
+	Usage   usage    `json:"usage,omitempty"`
+}
+
+type message struct {
+	Role      string           `json:"role"`
+	Content   string           `json:"content"`
+	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+}
+
+type tool struct {
+	Type     string         `json:"type"`
+	Function function `json:"function"`
+}
+
+type function struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"`
+	Arguments   string                 `json:"arguments,omitempty"`
+}
+
+type toolCall struct {
+	ID       string         `json:"id"`
+	Type     string         `json:"type"`
+	Function function `json:"function"`
+}
+
+type choice struct {
+	Index        int           `json:"index"`
+	Message      message `json:"message"`
+	FinishReason string        `json:"finish_reason"`
+}
+
+type usage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 
 // NewLocalProvider creates a new Local LLM provider
 func NewLocalProvider(config LocalConfig) *LocalProvider {
@@ -43,9 +96,9 @@ func NewLocalProvider(config LocalConfig) *LocalProvider {
 	logger.Debugf("Creating Local LLM provider with model: %s, endpoint: %s",
 		config.ModelID, config.Endpoint)
 	if config.APIKey != "" {
-		logger.Debugf("API key (masked for security): %s", maskLocalAPIKey(config.APIKey))
+		logger.Debugf("API key (masked for security): %s", maskAPIKey(config.APIKey))
 	} else {
-		logger.Debugf("No API key configured (typical for local servers)")
+		logger.Debugf("No API key configured")
 	}
 
 	return &LocalProvider{
@@ -53,7 +106,7 @@ func NewLocalProvider(config LocalConfig) *LocalProvider {
 		modelID:  config.ModelID,
 		apiKey:   config.APIKey,
 		client: &http.Client{
-			Timeout: 120 * time.Second, // Longer timeout for local inference
+			Timeout: 120 * time.Second,
 		},
 	}
 }
@@ -66,22 +119,22 @@ func (l *LocalProvider) Name() string {
 // GenerateResponse sends a prompt to the local LLM and returns the response
 func (l *LocalProvider) GenerateResponse(ctx context.Context, prompt string, tools []Tool) (*LLMResponse, error) {
 	// Convert tools to OpenAI format
-	openaiTools := make([]openaiTool, len(tools))
-	for i, tool := range tools {
-		openaiTools[i] = openaiTool{
+	openaiTools := make([]tool, len(tools))
+	for i, t := range tools {
+		openaiTools[i] = tool{
 			Type: "function",
-			Function: openaiFunction{
-				Name:        tool.Name,
-				Description: tool.Description,
-				Parameters:  tool.Parameters,
+			Function: function{
+				Name:        t.Name,
+				Description: t.Description,
+				Parameters:  t.Parameters,
 			},
 		}
 	}
 
 	// Prepare request payload using OpenAI-compatible format
-	requestPayload := openaiRequest{
+	requestPayload := request{
 		Model: l.modelID,
-		Messages: []openaiMessage{
+		Messages: []message{
 			{
 				Role:    "user",
 				Content: prompt,
@@ -103,7 +156,7 @@ func (l *LocalProvider) GenerateResponse(ctx context.Context, prompt string, too
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Create HTTP request - try /v1/chat/completions first (OpenAI compatible)
+	// Create HTTP request
 	url := fmt.Sprintf("%s/v1/chat/completions", l.endpoint)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonPayload))
 	if err != nil {
@@ -128,7 +181,7 @@ func (l *LocalProvider) GenerateResponse(ctx context.Context, prompt string, too
 	}
 
 	// Parse response
-	var openaiResp openaiResponse
+	var openaiResp response
 	if err := json.NewDecoder(resp.Body).Decode(&openaiResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
@@ -171,69 +224,4 @@ func (l *LocalProvider) GenerateResponse(ctx context.Context, prompt string, too
 	}
 
 	return response, nil
-}
-
-// OpenAI-compatible types for API communication
-type openaiRequest struct {
-	Model       string          `json:"model"`
-	Messages    []openaiMessage `json:"messages"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Temperature float64         `json:"temperature,omitempty"`
-	Stream      bool            `json:"stream,omitempty"`
-	Tools       []openaiTool    `json:"tools,omitempty"`
-	ToolChoice  string          `json:"tool_choice,omitempty"`
-}
-
-type openaiMessage struct {
-	Role      string           `json:"role"`
-	Content   string           `json:"content"`
-	ToolCalls []openaiToolCall `json:"tool_calls,omitempty"`
-}
-
-type openaiTool struct {
-	Type     string         `json:"type"`
-	Function openaiFunction `json:"function"`
-}
-
-type openaiFunction struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Parameters  map[string]interface{} `json:"parameters"`
-	Arguments   string                 `json:"arguments,omitempty"`
-}
-
-type openaiToolCall struct {
-	ID       string         `json:"id"`
-	Type     string         `json:"type"`
-	Function openaiFunction `json:"function"`
-}
-
-type openaiResponse struct {
-	Choices []openaiChoice `json:"choices"`
-	Usage   openaiUsage    `json:"usage,omitempty"`
-}
-
-type openaiChoice struct {
-	Index        int           `json:"index"`
-	Message      openaiMessage `json:"message"`
-	FinishReason string        `json:"finish_reason"`
-}
-
-type openaiUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
-}
-
-// maskLocalAPIKey masks an API key for secure logging, showing first 8 and last 4 characters
-func maskLocalAPIKey(apiKey string) string {
-	if len(apiKey) <= 12 {
-		// For short keys, mask most of it
-		if len(apiKey) <= 4 {
-			return "****"
-		}
-		return apiKey[:2] + "****" + apiKey[len(apiKey)-2:]
-	}
-	// For longer keys, show first 8 and last 4 characters
-	return apiKey[:8] + "****" + apiKey[len(apiKey)-4:]
 }

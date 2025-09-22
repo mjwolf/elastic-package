@@ -13,7 +13,8 @@ import (
 	"strings"
 )
 
-// PackageTools creates the tools available to the LLM for package operations
+// PackageTools creates the tools available to the LLM for package operations.
+// These tools do not allow access to `docs/`, to prevent the LLM from confusing the generated and non-generated README versions.
 func PackageTools(packageRoot string) []Tool {
 	return []Tool{
 		{
@@ -48,7 +49,7 @@ func PackageTools(packageRoot string) []Tool {
 		},
 		{
 			Name:        "write_file",
-			Description: "Write content to a file within the package. Use _dev/build/docs/ for documentation source files.",
+			Description: "Write content to a file within the package. This tool can only write in _dev/build/docs/.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -83,7 +84,11 @@ func listDirectoryHandler(packageRoot string) ToolHandler {
 		fullPath := filepath.Join(packageRoot, args.Path)
 
 		// Security check: ensure we stay within package root
-		if !strings.HasPrefix(fullPath, packageRoot) {
+		// Use filepath.Clean to resolve any "../" sequences, then check if it's still under packageRoot
+		cleanPath := filepath.Clean(fullPath)
+		cleanRoot := filepath.Clean(packageRoot)
+		relPath, relErr := filepath.Rel(cleanRoot, cleanPath)
+		if relErr != nil || strings.HasPrefix(relPath, "..") {
 			return &ToolResult{Error: "access denied: path outside package root"}, nil
 		}
 
@@ -128,8 +133,8 @@ func readFileHandler(packageRoot string) ToolHandler {
 			return &ToolResult{Error: fmt.Sprintf("failed to parse arguments: %v", err)}, nil
 		}
 
-		// Block access to generated artifacts in docs/ directory (but not _dev/build/docs/)
-		if strings.HasPrefix(args.Path, "docs/") || args.Path == "docs" {
+		// Block access to generated artifacts in docs/ directory (tool should only work with the template README)
+		if strings.HasPrefix(args.Path, "docs/") {
 			return &ToolResult{Error: "access denied: invalid path"}, nil
 		}
 
@@ -137,7 +142,11 @@ func readFileHandler(packageRoot string) ToolHandler {
 		fullPath := filepath.Join(packageRoot, args.Path)
 
 		// Security check: ensure we stay within package root
-		if !strings.HasPrefix(fullPath, packageRoot) {
+		// Use filepath.Clean to resolve any "../" sequences, then check if it's still under packageRoot
+		cleanPath := filepath.Clean(fullPath)
+		cleanRoot := filepath.Clean(packageRoot)
+		relPath, relErr := filepath.Rel(cleanRoot, cleanPath)
+		if relErr != nil || strings.HasPrefix(relPath, "..") {
 			return &ToolResult{Error: "access denied: path outside package root"}, nil
 		}
 
@@ -162,17 +171,16 @@ func writeFileHandler(packageRoot string) ToolHandler {
 			return &ToolResult{Error: fmt.Sprintf("failed to parse arguments: %v", err)}, nil
 		}
 
-		// Block writing to generated artifacts in docs/ directory (but not _dev/build/docs/)
-		if strings.HasPrefix(args.Path, "docs/") || args.Path == "docs" {
-			return &ToolResult{Error: "access denied: invalid path"}, nil
-		}
-
 		// Construct the full path
 		fullPath := filepath.Join(packageRoot, args.Path)
 
-		// Security check: ensure we stay within package root
-		if !strings.HasPrefix(fullPath, packageRoot) {
-			return &ToolResult{Error: "access denied: path outside package root"}, nil
+		// Security check: ensure we stay within package root, and only write in "_dev/build/docs"
+		allowedDir := filepath.Join(packageRoot, "_dev", "build", "docs")
+		cleanPath := filepath.Clean(fullPath)
+		cleanAllowed := filepath.Clean(allowedDir)
+		relPath, relErr := filepath.Rel(cleanAllowed, cleanPath)
+		if relErr != nil || strings.HasPrefix(relPath, "..") {
+			return &ToolResult{Error: "access denied: path outside allowed directory"}, nil
 		}
 
 		// Create directory if it doesn't exist

@@ -16,6 +16,19 @@ type Agent struct {
 	tools    []Tool
 }
 
+// TaskResult represents the result of a task execution
+type TaskResult struct {
+	Success      bool
+	FinalContent string
+	Conversation []ConversationEntry
+}
+
+// ConversationEntry represents an entry in the conversation
+type ConversationEntry struct {
+	Type    string // "user", "assistant", "tool_result"
+	Content string
+}
+
 // NewAgent creates a new LLM agent
 func NewAgent(provider LLMProvider, tools []Tool) *Agent {
 	return &Agent{
@@ -24,13 +37,8 @@ func NewAgent(provider LLMProvider, tools []Tool) *Agent {
 	}
 }
 
-// ExecuteTask runs the agent to complete a task
+// ExecuteTaskWithAnimation runs the agent to complete a task
 func (a *Agent) ExecuteTask(ctx context.Context, prompt string) (*TaskResult, error) {
-	return a.ExecuteTaskWithAnimation(ctx, prompt, nil)
-}
-
-// ExecuteTaskWithAnimation runs the agent to complete a task (animation parameter removed)
-func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, animation interface{}) (*TaskResult, error) {
 	var conversation []ConversationEntry
 
 	// Add initial prompt
@@ -39,16 +47,10 @@ func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, ani
 		Content: prompt,
 	})
 
-	// Adjust max iterations based on provider stability
-	maxIterations := 15 // Increased from 10 to handle unstable models like gemini-2.5-flash
-	if strings.Contains(strings.ToLower(a.provider.Name()), "gemini") {
-		maxIterations = 20 // Additional iterations for Gemini models due to known instability
-	}
+	maxIterations := 15
 	for i := 0; i < maxIterations; i++ {
 		// Build the full prompt with conversation history
 		fullPrompt := a.buildPrompt(conversation)
-
-		// Note: Animation removed - LLM is thinking
 
 		// Get response from LLM
 		response, err := a.provider.GenerateResponse(ctx, fullPrompt, a.tools)
@@ -62,12 +64,8 @@ func (a *Agent) ExecuteTaskWithAnimation(ctx context.Context, prompt string, ani
 			Content: response.Content,
 		})
 
-		// Note: Animation removed - LLM response received
-
 		// If there are tool calls, execute them
 		if len(response.ToolCalls) > 0 {
-			// Note: Animation removed - executing tools
-
 			for _, toolCall := range response.ToolCalls {
 				result, err := a.executeTool(ctx, toolCall)
 				if err != nil {
@@ -147,17 +145,4 @@ func (a *Agent) buildPrompt(conversation []ConversationEntry) string {
 	}
 
 	return builder.String()
-}
-
-// TaskResult represents the result of a task execution
-type TaskResult struct {
-	Success      bool
-	FinalContent string
-	Conversation []ConversationEntry
-}
-
-// ConversationEntry represents an entry in the conversation
-type ConversationEntry struct {
-	Type    string // "user", "assistant", "tool_result"
-	Content string
 }

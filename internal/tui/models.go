@@ -275,22 +275,22 @@ func DefaultKibanaVersionConditionValue() string {
 // Console output style functions for consistent coloring across the application
 // These respect the NO_COLOR environment variable and provide consistent styling
 
-// Warning renders text in warning color (yellow)
+// Warning renders text in warning color
 func Warning(text string) string {
 	return warningStyle.Render(text)
 }
 
-// Info renders text in info color (cyan)
+// Info renders text in info color
 func Info(text string) string {
 	return infoStyle.Render(text)
 }
 
-// Success renders text in success color (green, bold)
+// Success renders text in success color
 func Success(text string) string {
 	return successStyle.Render(text)
 }
 
-// Error renders text in error color (red)
+// Error renders text in error color
 func Error(text string) string {
 	return errorStyle.Render(text)
 }
