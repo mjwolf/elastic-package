@@ -231,4 +231,3 @@ func Success(text string) string {
 func Error(text string) string {
 	return errorStyle.Render(text)
 }
-
