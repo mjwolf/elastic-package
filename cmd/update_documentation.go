@@ -47,8 +47,6 @@ Configuration options for LLM providers (environment variables or profile config
 - LOCAL_LLM_MODEL / llm.local.model: Model name for local LLM (defaults to llama2)
 - LOCAL_LLM_API_KEY / llm.local.api_key: API key for local LLM (optional)`
 
-
-
 // getConfigValue retrieves a configuration value with fallback from environment variable to profile config
 func getConfigValue(profile *profile.Profile, envVar, configKey, defaultValue string) string {
 	// First check environment variable
@@ -132,9 +130,9 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		region := getConfigValue(profile, "BEDROCK_REGION", "llm.bedrock.region", "us-east-1")
 		modelID := getConfigValue(profile, "BEDROCK_MODEL", "llm.bedrock.model", "anthropic.claude-3-5-sonnet-20241022-v2:0")
 		provider = llmagent.NewBedrockProvider(llmagent.BedrockConfig{
-			APIKey:  bedrockAPIKey,
-			Region:  region,
-			ModelID: modelID,
+			APIKey:    bedrockAPIKey,
+			Region:    region,
+			ModelID:   modelID,
 			MaxTokens: 4096,
 		})
 		cmd.Printf("Using Amazon Bedrock provider with region: %s, model: %s\n", region, modelID)

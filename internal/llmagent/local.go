@@ -32,13 +32,13 @@ type LocalConfig struct {
 
 // OpenAI-compatible types for API communication
 type request struct {
-	Model       string          `json:"model"`
+	Model       string    `json:"model"`
 	Messages    []message `json:"messages"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Temperature float64         `json:"temperature,omitempty"`
-	Stream      bool            `json:"stream,omitempty"`
+	MaxTokens   int       `json:"max_tokens,omitempty"`
+	Temperature float64   `json:"temperature,omitempty"`
+	Stream      bool      `json:"stream,omitempty"`
 	Tools       []tool    `json:"tools,omitempty"`
-	ToolChoice  string          `json:"tool_choice,omitempty"`
+	ToolChoice  string    `json:"tool_choice,omitempty"`
 }
 
 type response struct {
@@ -47,13 +47,13 @@ type response struct {
 }
 
 type message struct {
-	Role      string           `json:"role"`
-	Content   string           `json:"content"`
+	Role      string     `json:"role"`
+	Content   string     `json:"content"`
 	ToolCalls []toolCall `json:"tool_calls,omitempty"`
 }
 
 type tool struct {
-	Type     string         `json:"type"`
+	Type     string   `json:"type"`
 	Function function `json:"function"`
 }
 
@@ -65,15 +65,15 @@ type function struct {
 }
 
 type toolCall struct {
-	ID       string         `json:"id"`
-	Type     string         `json:"type"`
+	ID       string   `json:"id"`
+	Type     string   `json:"type"`
 	Function function `json:"function"`
 }
 
 type choice struct {
-	Index        int           `json:"index"`
+	Index        int     `json:"index"`
 	Message      message `json:"message"`
-	FinishReason string        `json:"finish_reason"`
+	FinishReason string  `json:"finish_reason"`
 }
 
 type usage struct {
@@ -81,7 +81,6 @@ type usage struct {
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
 }
-
 
 // NewLocalProvider creates a new Local LLM provider
 func NewLocalProvider(config LocalConfig) *LocalProvider {

@@ -59,17 +59,17 @@ const (
 )
 
 var (
-		focusedStyle = lipgloss.NewStyle().Foreground(ansiBrightMagenta).Bold(true)
-		blurredStyle = lipgloss.NewStyle().Foreground(ansiBrightBlack)
-		errorStyle = lipgloss.NewStyle().Foreground(ansiBrightRed)
-		helpStyle = lipgloss.NewStyle().Foreground(ansiBrightBlack)
-		selectedStyle = lipgloss.NewStyle().Foreground(ansiBrightGreen).Bold(true)
-		unselectedStyle = lipgloss.NewStyle().Foreground(ansiBrightBlack)
+	focusedStyle    = lipgloss.NewStyle().Foreground(ansiBrightMagenta).Bold(true)
+	blurredStyle    = lipgloss.NewStyle().Foreground(ansiBrightBlack)
+	errorStyle      = lipgloss.NewStyle().Foreground(ansiBrightRed)
+	helpStyle       = lipgloss.NewStyle().Foreground(ansiBrightBlack)
+	selectedStyle   = lipgloss.NewStyle().Foreground(ansiBrightGreen).Bold(true)
+	unselectedStyle = lipgloss.NewStyle().Foreground(ansiBrightBlack)
 
-		// Console output styles
-		warningStyle = lipgloss.NewStyle().Foreground(ansiYellow)
-		infoStyle = lipgloss.NewStyle().Foreground(ansiCyan)
-		successStyle = lipgloss.NewStyle().Foreground(ansiGreen).Bold(true)
+	// Console output styles
+	warningStyle = lipgloss.NewStyle().Foreground(ansiYellow)
+	infoStyle    = lipgloss.NewStyle().Foreground(ansiCyan)
+	successStyle = lipgloss.NewStyle().Foreground(ansiGreen).Bold(true)
 )
 
 // ComposeValidators combines multiple validators

@@ -17,20 +17,20 @@ import (
 
 // BedrockProvider implements LLMProvider for Amazon Bedrock
 type BedrockProvider struct {
-	apiKey   string
-	region   string
-	modelID  string
-	endpoint string
+	apiKey    string
+	region    string
+	modelID   string
+	endpoint  string
 	maxTokens int
-	client   *http.Client
+	client    *http.Client
 }
 
 // BedrockConfig holds configuration for the Bedrock provider
 type BedrockConfig struct {
-	APIKey   string
-	Region   string
-	ModelID  string
-	Endpoint string
+	APIKey    string
+	Region    string
+	ModelID   string
+	Endpoint  string
 	MaxTokens int
 }
 
@@ -85,10 +85,10 @@ func NewBedrockProvider(config BedrockConfig) *BedrockProvider {
 	logger.Debugf("API key (masked for security): %s", maskAPIKey(config.APIKey))
 
 	return &BedrockProvider{
-		apiKey:   config.APIKey,
-		region:   config.Region,
-		modelID:  config.ModelID,
-		endpoint: config.Endpoint,
+		apiKey:    config.APIKey,
+		region:    config.Region,
+		modelID:   config.ModelID,
+		endpoint:  config.Endpoint,
 		maxTokens: config.MaxTokens,
 		client: &http.Client{
 			Timeout: 60 * time.Second,
@@ -185,4 +185,3 @@ func (b *BedrockProvider) GenerateResponse(ctx context.Context, prompt string, t
 
 	return response, nil
 }
-

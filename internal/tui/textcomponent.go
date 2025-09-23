@@ -88,6 +88,56 @@ func NewTextComponent(opts TextComponentOptions) *TextComponent {
 	return tc
 }
 
+// ShowContent displays content in a scrollable viewer and waits for user to close it
+func ShowContent(title, content string) error {
+	component := NewTextComponent(TextComponentOptions{
+		Mode:    ViewMode,
+		Title:   title,
+		Content: content,
+	})
+	model := newTextComponentModel(component)
+
+	// Enable mouse support and alternate screen for better display
+	program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+	_, err := program.Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// AskTextArea runs a text area dialog for multi-line input
+func AskTextArea(message string) (string, error) {
+	component := NewTextComponent(TextComponentOptions{
+		Mode:    EditMode,
+		Message: message,
+		Focused: true,
+	})
+	model := newTextComponentModel(component)
+	program := tea.NewProgram(model)
+
+	finalModel, err := program.Run()
+	if err != nil {
+		return "", err
+	}
+
+	result := finalModel.(*textComponentModel).component
+	if result.cancelled {
+		return "", ErrCancelled
+	}
+
+	if result.submitted {
+		return strings.TrimSpace(result.textarea.Value()), nil
+	}
+
+	return "", ErrCancelled
+}
+
+// ErrCancelled is returned when user cancels the dialog
+var ErrCancelled = errors.New("cancelled by user")
+
 func (tc *TextComponent) initViewMode() {
 	tc.lines = strings.Split(tc.content, "\n")
 	tc.maxLines = len(tc.lines)
@@ -106,7 +156,7 @@ func (tc *TextComponent) initEditMode() {
 	ta := textarea.New()
 	ta.Placeholder = "Enter your text here... (ESC to cancel, Ctrl+D to submit)"
 	ta.SetWidth(80)
-	ta.SetHeight(8)
+	ta.SetHeight(16)
 	ta.Focus()
 	ta.SetValue(tc.content)
 
@@ -116,24 +166,24 @@ func (tc *TextComponent) initEditMode() {
 	tc.textarea = ta
 }
 
-// TextComponentModel is the bubbletea model for the unified text component
-type TextComponentModel struct {
+// textComponentModel is the bubbletea model for the unified text component
+type textComponentModel struct {
 	component *TextComponent
 }
 
-// NewTextComponentModel creates a new model for the text component
-func NewTextComponentModel(component *TextComponent) *TextComponentModel {
-	return &TextComponentModel{component: component}
+// newTextComponentModel creates a new model for the text component
+func newTextComponentModel(component *TextComponent) *textComponentModel {
+	return &textComponentModel{component: component}
 }
 
-func (m *TextComponentModel) Init() tea.Cmd {
+func (m *textComponentModel) Init() tea.Cmd {
 	if m.component.mode == EditMode {
 		return textarea.Blink
 	}
 	return tea.EnterAltScreen
 }
 
-func (m *TextComponentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *textComponentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.component.width = msg.Width
@@ -169,7 +219,7 @@ func (m *TextComponentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// For edit mode, update the textarea for non-key events
+	// For edit mode, update the textarea for non-key events (i.e. Blink)
 	if m.component.mode == EditMode {
 		var cmd tea.Cmd
 		m.component.textarea, cmd = m.component.textarea.Update(msg)
@@ -179,7 +229,7 @@ func (m *TextComponentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *TextComponentModel) updateViewMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *textComponentModel) updateViewMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "esc", "enter":
 		m.component.finished = true
@@ -200,6 +250,22 @@ func (m *TextComponentModel) updateViewMode(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 			m.component.offset++
 		}
 
+	// Horizontal navigation
+	case "left", "h":
+		if m.component.hoffset > 0 {
+			m.component.hoffset--
+		}
+
+	case "right", "l":
+		contentWidth := m.component.width - 8 // Account for border and padding
+		maxHOffset := m.component.maxWidth - contentWidth
+		if maxHOffset < 0 {
+			maxHOffset = 0
+		}
+		if m.component.hoffset < maxHOffset {
+			m.component.hoffset++
+		}
+
 	// Full page navigation
 	case "pgup", "ctrl+b", "b":
 		m.component.offset -= m.component.viewport
@@ -215,22 +281,6 @@ func (m *TextComponentModel) updateViewMode(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.component.offset += m.component.viewport
 		if m.component.offset > maxOffset {
 			m.component.offset = maxOffset
-		}
-
-	// Horizontal navigation
-	case "left", "h":
-		if m.component.hoffset > 0 {
-			m.component.hoffset--
-		}
-
-	case "right", "l":
-		contentWidth := m.component.width - 8 // Account for border and padding
-		maxHOffset := m.component.maxWidth - contentWidth
-		if maxHOffset < 0 {
-			maxHOffset = 0
-		}
-		if m.component.hoffset < maxHOffset {
-			m.component.hoffset++
 		}
 
 	// Top/bottom navigation
@@ -260,7 +310,7 @@ func handleEditModeKeys(key string) (cancelled bool, submitted bool) {
 	return false, false
 }
 
-func (m *TextComponentModel) View() string {
+func (m *textComponentModel) View() string {
 	if m.component.mode == ViewMode {
 		return m.viewModeRender()
 	} else {
@@ -268,7 +318,7 @@ func (m *TextComponentModel) View() string {
 	}
 }
 
-func (m *TextComponentModel) viewModeRender() string {
+func (m *textComponentModel) viewModeRender() string {
 	var b strings.Builder
 
 	// Header with title and scroll position
@@ -279,7 +329,7 @@ func (m *TextComponentModel) viewModeRender() string {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(ansiBrightBlue).
 		BorderBottom(true).
-		Width(m.component.width-4). // Account for border and padding
+		Width(m.component.width).
 		MarginBottom(1).            // Add space after header
 		Padding(0, 2).              // Add horizontal padding
 		Align(lipgloss.Center)
@@ -355,10 +405,10 @@ func (m *TextComponentModel) viewModeRender() string {
 	// Footer instructions
 	b.WriteString("\n")
 	instructionsStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
+		Foreground(ansiBrightBlack).
 		Italic(true)
 
-	instructions := "↑↓/jk: line | ←→/hl: scroll | PgUp/PgDn/Ctrl+B/Ctrl+F/b/f/Space: page | d/u: half page | Home/End/g/G: top/bottom | Enter/q/Esc: close"
+	instructions := "↑↓/jk: line | ←→/hl: scroll | PgUp/PgDn/Ctrl+B/Ctrl+F/b/f/Space: page | Home/End/g/G: top/bottom | Enter/q/Esc: close"
 	b.WriteString(instructionsStyle.Render(instructions))
 
 	return b.String()
@@ -394,141 +444,7 @@ func renderEditMode(message string, focused bool, textarea textarea.Model, error
 	return b.String()
 }
 
-func (m *TextComponentModel) editModeRender() string {
+func (m *textComponentModel) editModeRender() string {
 	return renderEditMode(m.component.message, m.component.focused, m.component.textarea, m.component.error)
 }
 
-// Value returns the current value for edit mode
-func (tc *TextComponent) Value() interface{} {
-	if tc.cancelled {
-		return nil
-	}
-	if tc.mode == EditMode {
-		return strings.TrimSpace(tc.textarea.Value())
-	}
-	return tc.content
-}
-
-// IsCancelled returns true if the user pressed ESC
-func (tc *TextComponent) IsCancelled() bool {
-	return tc.cancelled
-}
-
-// IsSubmitted returns true if the user submitted in edit mode
-func (tc *TextComponent) IsSubmitted() bool {
-	return tc.submitted
-}
-
-// ShowContent displays content in a scrollable viewer and waits for user to close it
-func ShowContent(title, content string) error {
-	component := NewTextComponent(TextComponentOptions{
-		Mode:    ViewMode,
-		Title:   title,
-		Content: content,
-	})
-	model := NewTextComponentModel(component)
-
-	// Enable mouse support and alternate screen for better display
-	program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
-
-	_, err := program.Run()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// AskTextArea runs a text area dialog for multi-line input
-func AskTextArea(message string) (string, error) {
-	component := NewTextComponent(TextComponentOptions{
-		Mode:    EditMode,
-		Message: message,
-		Focused: true,
-	})
-	model := NewTextComponentModel(component)
-	program := tea.NewProgram(model)
-
-	finalModel, err := program.Run()
-	if err != nil {
-		return "", err
-	}
-
-	result := finalModel.(*TextComponentModel).component
-	if result.cancelled {
-		return "", ErrCancelled
-	}
-
-	if result.submitted {
-		return strings.TrimSpace(result.textarea.Value()), nil
-	}
-
-	return "", ErrCancelled
-}
-
-// ErrCancelled is returned when user cancels the dialog
-var ErrCancelled = errors.New("cancelled by user")
-
-// TextArea represents a multiline text input prompt that implements the Prompt interface
-// This is a wrapper around TextComponent for compatibility with the questionnaire system
-type TextArea struct {
-	component *TextComponent
-}
-
-// NewTextArea creates a new textarea prompt for the questionnaire system
-func NewTextArea(message, defaultValue string) *TextArea {
-	component := NewTextComponent(TextComponentOptions{
-		Mode:         EditMode,
-		Message:      message,
-		DefaultValue: defaultValue,
-		Focused:      true,
-	})
-	return &TextArea{
-		component: component,
-	}
-}
-
-func (t *TextArea) Message() string      { return t.component.message }
-func (t *TextArea) Default() interface{} { return t.component.defaultValue }
-func (t *TextArea) SetError(err string)  { t.component.error = err }
-func (t *TextArea) SetFocused(focused bool) {
-	t.component.focused = focused
-	if focused {
-		t.component.textarea.Focus()
-	} else {
-		t.component.textarea.Blur()
-	}
-}
-
-// Value returns the current value
-func (t *TextArea) Value() interface{} {
-	return t.component.Value()
-}
-
-// IsCancelled returns true if the user pressed ESC
-func (t *TextArea) IsCancelled() bool {
-	return t.component.IsCancelled()
-}
-
-func (t *TextArea) Update(msg tea.Msg) (Prompt, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		cancelled, submitted := handleEditModeKeys(msg.String())
-		if cancelled {
-			t.component.cancelled = true
-			return t, nil
-		}
-		if submitted {
-			t.component.submitted = true
-			return t, nil
-		}
-	}
-
-	var cmd tea.Cmd
-	t.component.textarea, cmd = t.component.textarea.Update(msg)
-	return t, cmd
-}
-
-func (t *TextArea) Render() string {
-	return renderEditMode(t.component.message, t.component.focused, t.component.textarea, t.component.error)
-}
