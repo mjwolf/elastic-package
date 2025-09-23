@@ -21,10 +21,113 @@ import (
 )
 
 // The embedded example_readme is an example of a high-quality integration readme, following the static template archetype,
-// That helps the LLM follow an example.
+// which will help the LLM follow an example.
 //
 //go:embed _static/example_readme.md
 var exampleReadmeContent string
+
+const (
+	initialPrompt = `You are an expert technical writer specializing in documentation for Elastic Integrations. Your mission is to create a comprehensive, user-friendly README.md file by synthesizing information from the integration's source code, external research, and a provided template.
+
+Core Task:
+
+Generate or update the _dev/build/docs/README.md file for the integration specified below.
+
+* Package Name: %s
+* Title: %s
+* Type: %s
+* Version: %s
+* Description: %s
+
+
+Critical Directives (Follow These Strictly):
+
+1.  File Restriction: You MUST ONLY write to the _dev/build/docs/README.md file. Do not modify any other files.
+2.  Preserve Human Content: You MUST preserve any content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> comment blocks. This content is non-negotiable and must be kept verbatim in its original position.
+3.  No Hallucination: If you cannot find a piece of information in the package files or through web search, DO NOT invent it. Instead, insert a clear placeholder in the document: << INFORMATION NOT AVAILABLE - PLEASE UPDATE >>.
+
+Your Step-by-Step Process:
+
+1.  Initial Analysis:
+    * Begin by listing the contents of the package to understand its structure.
+    * Read the existing _dev/build/docs/README.md (if it exists) to identify its current state and locate any human-edited sections that must be preserved.
+
+2.  Internal Information Gathering:
+    * Analyze the package files to extract key details. Pay close attention to:
+        * manifest.yml: For top-level metadata, owner, license, and supported Elasticsearch versions.
+        * data_stream/*/manifest.yml: To compile a list of all data streams, their types (logs, metrics), and a brief description of the data each collects.
+        * data_stream/*/fields/fields.yml: To understand the data schema and important fields. Mentioning a few key fields can be helpful for users.
+
+3.  External Information Gathering:
+    * Use your web search tool to find the official documentation for the service or technology this integration supports (e.g., "NGINX logs setup," "AWS S3 access logs format").
+    * Your goal is to find **actionable, step-by-step instructions** for users on how to configure the *source system* to generate the data this integration is designed to collect.
+
+4.  Drafting the Documentation:
+    * Using the provided template, begin writing the README.md.
+    * Integrate the information gathered from the package files and your web research into the appropriate sections.
+    * Re-insert any preserved human-edited sections into their original locations.
+
+5.  Review and Finalize:
+    * Read through your generated README to ensure it is clear, accurate, and easy to follow.
+    * Verify that all critical directives (file restrictions, content preservation) have been followed.
+    * Confirm that the tone and style align with the provided high-quality example.
+
+6. Write the results:
+    * Write the generated README to _dev/build/docs/README.md.
+    * Do not return the results as a response in this conversation.
+
+Style and Content Guidance:
+
+* Audience & Tone: Write for a technical audience (e.g., DevOps Engineers, SREs, Security Analysts). The tone should be professional, clear, and direct. Use active voice.
+* Template is a Blueprint: The provided template is your required structure. Follow it closely.
+* The Example is Your "Gold Standard": The provided example README demonstrates the target quality, level of detail, and formatting. Emulate its style, especially in the "Configuration" and "Setup" sections. Explain *why* a step is needed, not just *what* the step is.
+* Be Specific: Instead of saying "configure the service," provide a concrete configuration snippet or a numbered list of steps. Link to official external documentation where appropriate to provide users with more depth.
+
+Assets:
+
+* Template to Follow:
+    %s
+
+* Example of a High-Quality README:
+    %s
+
+Please begin. Start with the "Initial Analysis" step.`
+	revisionPrompt = `You are continuing to work on documentation for an Elastic Integration. You have access to tools to analyze the package and make changes.
+
+CURRENT TASK: Make specific revisions to the existing documentation based on user feedback.
+
+Package Information:
+* Package Name: %s
+* Title: %s
+* Type: %s
+* Version: %s
+* Description: %s
+
+Critical Directives (Follow These Strictly):
+1. File Restriction: You MUST ONLY write to the _dev/build/docs/README.md file. Do not modify any other files.
+2. Preserve Human Content: You MUST preserve any content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> comment blocks.
+3. Read Current Content: First read the existing _dev/build/docs/README.md to understand the current state.
+4. No Hallucination: If you need information not available in package files, insert placeholders: << INFORMATION NOT AVAILABLE - PLEASE UPDATE >>.
+
+Your Step-by-Step Process:
+1. Read the current _dev/build/docs/README.md file to understand what exists
+2. Analyze the requested changes carefully
+3. Use available tools to gather any additional information needed
+4. Make the specific changes requested while preserving existing good content
+5. Ensure the result is comprehensive and follows Elastic documentation standards
+6. Write the generated README to _dev/build/docs/README.md
+
+User-Requested Changes:
+%s
+
+Template Reference:
+%s
+
+High-Quality Example:
+%s
+
+Begin by reading the current README.md file, then implement the requested changes thoughtfully.`
+)
 
 // DocumentationAgent handles documentation updates for packages
 type DocumentationAgent struct {
@@ -50,50 +153,6 @@ func NewDocumentationAgent(provider LLMProvider, packageRoot string) (*Documenta
 		packageRoot:     packageRoot,
 		templateContent: templateContent,
 	}, nil
-}
-
-// logAgentResponse logs debug information about the agent response
-func (d *DocumentationAgent) logAgentResponse(result *TaskResult) {
-	logger.Debugf("DEBUG: Full agent task response follows (may contain sensitive content)")
-	logger.Debugf("Agent task response - Success: %t", result.Success)
-	logger.Debugf("Agent task response - FinalContent: %s", result.FinalContent)
-	logger.Debugf("Agent task response - Conversation entries: %d", len(result.Conversation))
-	for i, entry := range result.Conversation {
-		logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d",
-			i, entry.Type, len(entry.Content))
-		logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
-	}
-}
-
-// executeTaskWithLogging executes a task and logs the result
-func (d *DocumentationAgent) executeTaskWithLogging(ctx context.Context, prompt string) (*TaskResult, error) {
-	fmt.Println("🤖 LLM Agent is working...")
-
-	result, err := d.agent.ExecuteTask(ctx, prompt)
-	if err != nil {
-		fmt.Println("❌ Agent task failed")
-		return nil, fmt.Errorf("agent task failed: %w", err)
-	}
-
-	fmt.Println("✅ Task completed")
-	d.logAgentResponse(result)
-	return result, nil
-}
-
-// handleReadmeUpdate checks if README was updated and reports the result
-func (d *DocumentationAgent) handleReadmeUpdate() (bool, error) {
-	readmeUpdated := d.checkReadmeUpdated()
-	if !readmeUpdated {
-		return false, nil
-	}
-
-	content, err := d.readCurrentReadme()
-	if err != nil || content == "" {
-		return false, err
-	}
-
-	fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
-	return true, nil
 }
 
 // UpdateDocumentation runs the documentation update process
@@ -216,6 +275,50 @@ func (d *DocumentationAgent) runInteractiveMode(ctx context.Context, prompt stri
 	}
 }
 
+// logAgentResponse logs debug information about the agent response
+func (d *DocumentationAgent) logAgentResponse(result *TaskResult) {
+	logger.Debugf("DEBUG: Full agent task response follows (may contain sensitive content)")
+	logger.Debugf("Agent task response - Success: %t", result.Success)
+	logger.Debugf("Agent task response - FinalContent: %s", result.FinalContent)
+	logger.Debugf("Agent task response - Conversation entries: %d", len(result.Conversation))
+	for i, entry := range result.Conversation {
+		logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d",
+			i, entry.Type, len(entry.Content))
+		logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
+	}
+}
+
+// executeTaskWithLogging executes a task and logs the result
+func (d *DocumentationAgent) executeTaskWithLogging(ctx context.Context, prompt string) (*TaskResult, error) {
+	fmt.Println("🤖 LLM Agent is working...")
+
+	result, err := d.agent.ExecuteTask(ctx, prompt)
+	if err != nil {
+		fmt.Println("❌ Agent task failed")
+		return nil, fmt.Errorf("agent task failed: %w", err)
+	}
+
+	fmt.Println("✅ Task completed")
+	d.logAgentResponse(result)
+	return result, nil
+}
+
+// handleReadmeUpdate checks if README was updated and reports the result
+func (d *DocumentationAgent) handleReadmeUpdate() (bool, error) {
+	readmeUpdated := d.checkReadmeUpdated()
+	if !readmeUpdated {
+		return false, nil
+	}
+
+	content, err := d.readCurrentReadme()
+	if err != nil || content == "" {
+		return false, err
+	}
+
+	fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
+	return true, nil
+}
+
 // handleInteractiveError handles error responses in interactive mode
 func (d *DocumentationAgent) handleInteractiveError() (string, bool, error) {
 	fmt.Println("\n❌ Error detected in LLM response.")
@@ -239,60 +342,6 @@ func (d *DocumentationAgent) handleInteractiveError() (string, bool, error) {
 	// Continue with retry prompt
 	newPrompt := d.buildRevisionPrompt("The previous attempt encountered an error. Please try a different approach to analyze the package and create/update the documentation.")
 	return newPrompt, true, nil
-}
-
-// displayReadmeIfUpdated shows README content if it was updated
-func (d *DocumentationAgent) displayReadmeIfUpdated() bool {
-	readmeUpdated := d.checkReadmeUpdated()
-	if !readmeUpdated {
-		fmt.Println("\n⚠️  README.md file not updated")
-		return false
-	}
-
-	sourceContent, err := d.readCurrentReadme()
-	if err != nil || sourceContent == "" {
-		fmt.Println("\n⚠️  README.md file exists but could not be read or is empty")
-		return false
-	}
-
-	// Try to render the content
-	renderedContent, shouldBeRendered, err := docs.GenerateReadme("README.md", d.packageRoot)
-	if err != nil || !shouldBeRendered {
-		fmt.Println("\n⚠️  The generated README.md could not be rendered.")
-		fmt.Println("It's recommended that you do not accept this version (ask for revisions or cancel).")
-	} else {
-		// Show the processed/rendered content
-		processedContentStr := string(renderedContent)
-		fmt.Printf("📊 Processed README stats: %d characters, %d lines\n", len(processedContentStr), strings.Count(processedContentStr, "\n")+1)
-
-		title := "📄 Processed README.md (as generated by elastic-package build)"
-		if err := tui.ShowContent(title, processedContentStr); err != nil {
-			// Fallback to simple print if viewer fails
-			fmt.Printf("\n%s:\n", title)
-			fmt.Println(strings.Repeat("=", 70))
-			fmt.Println(processedContentStr)
-			fmt.Println(strings.Repeat("=", 70))
-		}
-	}
-
-	return true
-}
-
-// getUserAction prompts the user for their next action
-func (d *DocumentationAgent) getUserAction() (string, error) {
-	selectPrompt := tui.NewSelect("What would you like to do?", []string{
-		"Accept and finalize",
-		"Request changes",
-		"Cancel",
-	}, "Accept and finalize")
-
-	var action string
-	err := tui.AskOne(selectPrompt, &action)
-	if err != nil {
-		return "", fmt.Errorf("prompt failed: %w", err)
-	}
-
-	return action, nil
 }
 
 // handleUserAction processes the user's chosen action
@@ -379,71 +428,7 @@ func (d *DocumentationAgent) handleRequestChanges() (string, bool, bool, error) 
 
 // buildInitialPrompt creates the initial prompt for the LLM
 func (d *DocumentationAgent) buildInitialPrompt(manifest *packages.PackageManifest) string {
-	return fmt.Sprintf(`You are an expert technical writer specializing in documentation for Elastic Integrations. Your mission is to create a comprehensive, user-friendly README.md file by synthesizing information from the integration's source code, external research, and a provided template.
-
-Core Task:
-
-Generate or update the _dev/build/docs/README.md file for the integration specified below.
-
-* Package Name: %s
-* Title: %s
-* Type: %s
-* Version: %s
-* Description: %s
-
-
-Critical Directives (Follow These Strictly):
-
-1.  File Restriction: You MUST ONLY write to the _dev/build/docs/README.md file. Do not modify any other files.
-2.  Preserve Human Content: You MUST preserve any content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> comment blocks. This content is non-negotiable and must be kept verbatim in its original position.
-3.  No Hallucination: If you cannot find a piece of information in the package files or through web search, DO NOT invent it. Instead, insert a clear placeholder in the document: << INFORMATION NOT AVAILABLE - PLEASE UPDATE >>.
-
-Your Step-by-Step Process:
-
-1.  Initial Analysis:
-    * Begin by listing the contents of the package to understand its structure.
-    * Read the existing _dev/build/docs/README.md (if it exists) to identify its current state and locate any human-edited sections that must be preserved.
-
-2.  Internal Information Gathering:
-    * Analyze the package files to extract key details. Pay close attention to:
-        * manifest.yml: For top-level metadata, owner, license, and supported Elasticsearch versions.
-        * data_stream/*/manifest.yml: To compile a list of all data streams, their types (logs, metrics), and a brief description of the data each collects.
-        * data_stream/*/fields/fields.yml: To understand the data schema and important fields. Mentioning a few key fields can be helpful for users.
-
-3.  External Information Gathering:
-    * Use your web search tool to find the official documentation for the service or technology this integration supports (e.g., "NGINX logs setup," "AWS S3 access logs format").
-    * Your goal is to find **actionable, step-by-step instructions** for users on how to configure the *source system* to generate the data this integration is designed to collect.
-
-4.  Drafting the Documentation:
-    * Using the provided template, begin writing the README.md.
-    * Integrate the information gathered from the package files and your web research into the appropriate sections.
-    * Re-insert any preserved human-edited sections into their original locations.
-
-5.  Review and Finalize:
-    * Read through your generated README to ensure it is clear, accurate, and easy to follow.
-    * Verify that all critical directives (file restrictions, content preservation) have been followed.
-    * Confirm that the tone and style align with the provided high-quality example.
-
-6. Write the results:
-    * Write the generated README to _dev/build/docs/README.md.
-    * Do not return the results as a response in this conversation.
-
-Style and Content Guidance:
-
-* Audience & Tone: Write for a technical audience (e.g., DevOps Engineers, SREs, Security Analysts). The tone should be professional, clear, and direct. Use active voice.
-* Template is a Blueprint: The provided template is your required structure. Follow it closely.
-* The Example is Your "Gold Standard": The provided example README demonstrates the target quality, level of detail, and formatting. Emulate its style, especially in the "Configuration" and "Setup" sections. Explain *why* a step is needed, not just *what* the step is.
-* Be Specific: Instead of saying "configure the service," provide a concrete configuration snippet or a numbered list of steps. Link to official external documentation where appropriate to provide users with more depth.
-
-Assets:
-
-* Template to Follow:
-    %s
-
-* Example of a High-Quality README:
-    %s
-
-Please begin. Start with the "Initial Analysis" step.`,
+	return fmt.Sprintf(initialPrompt,
 		manifest.Name,
 		manifest.Title,
 		manifest.Type,
@@ -451,6 +436,81 @@ Please begin. Start with the "Initial Analysis" step.`,
 		manifest.Description,
 		d.templateContent,
 		exampleReadmeContent)
+}
+
+// buildRevisionPrompt creates a comprehensive prompt for document revisions that includes all necessary context
+func (d *DocumentationAgent) buildRevisionPrompt(changes string) string {
+	// Read package manifest for context
+	manifest, err := packages.ReadPackageManifestFromPackageRoot(d.packageRoot)
+	if err != nil {
+		// Fallback to a simpler prompt if we can't read the manifest
+		return fmt.Sprintf("Please make the following changes to the documentation:\n\n%s", changes)
+	}
+
+	return fmt.Sprintf(revisionPrompt,
+		manifest.Name,
+		manifest.Title,
+		manifest.Type,
+		manifest.Version,
+		manifest.Description,
+		changes,
+		d.templateContent,
+		exampleReadmeContent)
+}
+
+// displayReadmeIfUpdated shows README content if it was updated
+func (d *DocumentationAgent) displayReadmeIfUpdated() bool {
+	readmeUpdated := d.checkReadmeUpdated()
+	if !readmeUpdated {
+		fmt.Println("\n⚠️  README.md file not updated")
+		return false
+	}
+
+	sourceContent, err := d.readCurrentReadme()
+	if err != nil || sourceContent == "" {
+		fmt.Println("\n⚠️  README.md file exists but could not be read or is empty")
+		return false
+	}
+
+	// Try to render the content
+	renderedContent, shouldBeRendered, err := docs.GenerateReadme("README.md", d.packageRoot)
+	if err != nil || !shouldBeRendered {
+		fmt.Println("\n⚠️  The generated README.md could not be rendered.")
+		fmt.Println("It's recommended that you do not accept this version (ask for revisions or cancel).")
+		return true
+	} else {
+		// Show the processed/rendered content
+		processedContentStr := string(renderedContent)
+		fmt.Printf("📊 Processed README stats: %d characters, %d lines\n", len(processedContentStr), strings.Count(processedContentStr, "\n")+1)
+
+		title := "📄 Processed README.md (as generated by elastic-package build)"
+		if err := tui.ShowContent(title, processedContentStr); err != nil {
+			// Fallback to simple print if viewer fails
+			fmt.Printf("\n%s:\n", title)
+			fmt.Println(strings.Repeat("=", 70))
+			fmt.Println(processedContentStr)
+			fmt.Println(strings.Repeat("=", 70))
+		}
+	}
+
+	return true
+}
+
+// getUserAction prompts the user for their next action
+func (d *DocumentationAgent) getUserAction() (string, error) {
+	selectPrompt := tui.NewSelect("What would you like to do?", []string{
+		"Accept and finalize",
+		"Request changes",
+		"Cancel",
+	}, "Accept and finalize")
+
+	var action string
+	err := tui.AskOne(selectPrompt, &action)
+	if err != nil {
+		return "", fmt.Errorf("prompt failed: %w", err)
+	}
+
+	return action, nil
 }
 
 // checkReadmeUpdated checks if README.md has been updated by comparing current content to originalReadmeContent
@@ -573,61 +633,7 @@ func (d *DocumentationAgent) extractPreservedSections(content string) map[string
 	return sections
 }
 
-// buildRevisionPrompt creates a comprehensive prompt for document revisions that includes all necessary context
-func (d *DocumentationAgent) buildRevisionPrompt(changes string) string {
-	// Read package manifest for context
-	manifest, err := packages.ReadPackageManifestFromPackageRoot(d.packageRoot)
-	if err != nil {
-		// Fallback to a simpler prompt if we can't read the manifest
-		return fmt.Sprintf("Please make the following changes to the documentation:\n\n%s", changes)
-	}
-
-	return fmt.Sprintf(`You are continuing to work on documentation for an Elastic Integration. You have access to tools to analyze the package and make changes.
-
-CURRENT TASK: Make specific revisions to the existing documentation based on user feedback.
-
-Package Information:
-* Package Name: %s
-* Title: %s
-* Type: %s
-* Version: %s
-* Description: %s
-
-Critical Directives (Follow These Strictly):
-1. File Restriction: You MUST ONLY write to the _dev/build/docs/README.md file. Do not modify any other files.
-2. Preserve Human Content: You MUST preserve any content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> comment blocks.
-3. Read Current Content: First read the existing _dev/build/docs/README.md to understand the current state.
-4. No Hallucination: If you need information not available in package files, insert placeholders: << INFORMATION NOT AVAILABLE - PLEASE UPDATE >>.
-
-Your Step-by-Step Process:
-1. Read the current _dev/build/docs/README.md file to understand what exists
-2. Analyze the requested changes carefully
-3. Use available tools to gather any additional information needed
-4. Make the specific changes requested while preserving existing good content
-5. Ensure the result is comprehensive and follows Elastic documentation standards
-6. Write the generated README to _dev/build/docs/README.md
-
-User-Requested Changes:
-%s
-
-Template Reference:
-%s
-
-High-Quality Example:
-%s
-
-Begin by reading the current README.md file, then implement the requested changes thoughtfully.`,
-		manifest.Name,
-		manifest.Title,
-		manifest.Type,
-		manifest.Version,
-		manifest.Description,
-		changes,
-		d.templateContent,
-		exampleReadmeContent)
-}
-
-// backupOriginalReadme stores the current README content for potential restoration
+// backupOriginalReadme stores the current README content for potential restoration and comparison to the generated version
 func (d *DocumentationAgent) backupOriginalReadme() {
 	readmePath := filepath.Join(d.packageRoot, "_dev", "build", "docs", "README.md")
 
