@@ -51,38 +51,40 @@ type TextComponent struct {
 	finished  bool
 }
 
-// NewTextComponent creates a new text component in the specified mode
-func NewTextComponent(mode TextComponentMode, title, content string) *TextComponent {
+// TextComponentOptions holds optional parameters for creating a TextComponent
+type TextComponentOptions struct {
+	Mode         TextComponentMode
+	Title        string
+	Content      string
+	Message      string
+	DefaultValue string
+	Focused      bool
+}
+
+// NewTextComponent creates a new text component with the given options
+func NewTextComponent(opts TextComponentOptions) *TextComponent {
 	tc := &TextComponent{
-		title:   title,
-		content: content,
-		mode:    mode,
-		width:   80,
-		height:  24,
+		title:        opts.Title,
+		content:      opts.Content,
+		mode:         opts.Mode,
+		message:      opts.Message,
+		defaultValue: opts.DefaultValue,
+		focused:      opts.Focused,
+		width:        80,
+		height:       24,
 	}
 
-	if mode == ViewMode {
+	// If content is empty but defaultValue is set, use defaultValue as content
+	if tc.content == "" && tc.defaultValue != "" {
+		tc.content = tc.defaultValue
+	}
+
+	if tc.mode == ViewMode {
 		tc.initViewMode()
 	} else {
 		tc.initEditMode()
 	}
 
-	return tc
-}
-
-// NewTextComponentForEdit creates a new text component for editing with a message and default value
-func NewTextComponentForEdit(message, defaultValue string) *TextComponent {
-	tc := &TextComponent{
-		mode:         EditMode,
-		message:      message,
-		defaultValue: defaultValue,
-		content:      defaultValue,
-		focused:      true,
-		width:        80,
-		height:       24,
-	}
-
-	tc.initEditMode()
 	return tc
 }
 
@@ -149,11 +151,25 @@ func (m *TextComponentModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.component.mode == ViewMode {
 			return m.updateViewMode(msg)
 		} else {
-			return m.updateEditMode(msg)
+			// Handle special keys first
+			cancelled, submitted := handleEditModeKeys(msg.String())
+			if cancelled {
+				m.component.cancelled = true
+				return m, tea.Quit
+			}
+			if submitted {
+				m.component.submitted = true
+				return m, tea.Quit
+			}
+
+			// For regular keys, update the textarea
+			var cmd tea.Cmd
+			m.component.textarea, cmd = m.component.textarea.Update(msg)
+			return m, cmd
 		}
 	}
 
-	// For edit mode, update the textarea
+	// For edit mode, update the textarea for non-key events
 	if m.component.mode == EditMode {
 		var cmd tea.Cmd
 		m.component.textarea, cmd = m.component.textarea.Update(msg)
@@ -184,7 +200,7 @@ func (m *TextComponentModel) updateViewMode(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 			m.component.offset++
 		}
 
-	// Full page navigation (vim/less style)
+	// Full page navigation
 	case "pgup", "ctrl+b", "b":
 		m.component.offset -= m.component.viewport
 		if m.component.offset < 0 {
@@ -199,31 +215,6 @@ func (m *TextComponentModel) updateViewMode(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 		m.component.offset += m.component.viewport
 		if m.component.offset > maxOffset {
 			m.component.offset = maxOffset
-		}
-
-	// Half page navigation
-	case "ctrl+d", "d":
-		halfPage := m.component.viewport / 2
-		if halfPage < 1 {
-			halfPage = 1
-		}
-		maxOffset := m.component.maxLines - m.component.viewport
-		if maxOffset < 0 {
-			maxOffset = 0
-		}
-		m.component.offset += halfPage
-		if m.component.offset > maxOffset {
-			m.component.offset = maxOffset
-		}
-
-	case "ctrl+u", "u":
-		halfPage := m.component.viewport / 2
-		if halfPage < 1 {
-			halfPage = 1
-		}
-		m.component.offset -= halfPage
-		if m.component.offset < 0 {
-			m.component.offset = 0
 		}
 
 	// Horizontal navigation
@@ -257,22 +248,16 @@ func (m *TextComponentModel) updateViewMode(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 	return m, nil
 }
 
-func (m *TextComponentModel) updateEditMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		// User wants to cancel
-		m.component.cancelled = true
-		return m, tea.Quit
+// handleEditModeKeys handles common key events for edit mode components
+// Returns (cancelled, submitted) flags
+func handleEditModeKeys(key string) (cancelled bool, submitted bool) {
+	switch key {
+	case "esc", "ctrl+c":
+		return true, false
 	case "ctrl+d":
-		// User wants to submit (alternative to enter since enter adds newlines)
-		m.component.submitted = true
-		return m, tea.Quit
-	case "ctrl+c":
-		m.component.cancelled = true
-		return m, tea.Quit
+		return false, true
 	}
-
-	return m, nil
+	return false, false
 }
 
 func (m *TextComponentModel) View() string {
@@ -289,10 +274,10 @@ func (m *TextComponentModel) viewModeRender() string {
 	// Header with title and scroll position
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("15")). // Bright white text
-		Background(lipgloss.Color("27")). // Blue background
+		Foreground(ansiBrightWhite).
+		Background(ansiBlue).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("86")).
+		BorderForeground(ansiBrightBlue).
 		BorderBottom(true).
 		Width(m.component.width-4). // Account for border and padding
 		MarginBottom(1).            // Add space after header
@@ -332,7 +317,7 @@ func (m *TextComponentModel) viewModeRender() string {
 	// Content area
 	contentStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(ansiBlue).
 		Padding(1).
 		Width(m.component.width - 4)
 
@@ -379,33 +364,38 @@ func (m *TextComponentModel) viewModeRender() string {
 	return b.String()
 }
 
-func (m *TextComponentModel) editModeRender() string {
+// renderEditMode renders the edit mode UI for a text component
+func renderEditMode(message string, focused bool, textarea textarea.Model, error string) string {
 	var b strings.Builder
 
 	// Question message
 	style := blurredStyle
-	if m.component.focused {
+	if focused {
 		style = focusedStyle
 	}
-	b.WriteString(style.Render(m.component.message))
+	b.WriteString(style.Render(message))
 	b.WriteString("\n")
 
 	// Instructions
-	if m.component.focused {
+	if focused {
 		b.WriteString(helpStyle.Render("  Use Ctrl+D to submit, ESC to cancel"))
 		b.WriteString("\n\n")
 	}
 
 	// TextArea
-	b.WriteString(m.component.textarea.View())
+	b.WriteString(textarea.View())
 
 	// Error message
-	if m.component.error != "" {
+	if error != "" {
 		b.WriteString("\n")
-		b.WriteString(errorStyle.Render("✗ " + m.component.error))
+		b.WriteString(errorStyle.Render("✗ " + error))
 	}
 
 	return b.String()
+}
+
+func (m *TextComponentModel) editModeRender() string {
+	return renderEditMode(m.component.message, m.component.focused, m.component.textarea, m.component.error)
 }
 
 // Value returns the current value for edit mode
@@ -431,7 +421,11 @@ func (tc *TextComponent) IsSubmitted() bool {
 
 // ShowContent displays content in a scrollable viewer and waits for user to close it
 func ShowContent(title, content string) error {
-	component := NewTextComponent(ViewMode, title, content)
+	component := NewTextComponent(TextComponentOptions{
+		Mode:    ViewMode,
+		Title:   title,
+		Content: content,
+	})
 	model := NewTextComponentModel(component)
 
 	// Enable mouse support and alternate screen for better display
@@ -447,7 +441,11 @@ func ShowContent(title, content string) error {
 
 // AskTextArea runs a text area dialog for multi-line input
 func AskTextArea(message string) (string, error) {
-	component := NewTextComponentForEdit(message, "")
+	component := NewTextComponent(TextComponentOptions{
+		Mode:    EditMode,
+		Message: message,
+		Focused: true,
+	})
 	model := NewTextComponentModel(component)
 	program := tea.NewProgram(model)
 
@@ -479,7 +477,12 @@ type TextArea struct {
 
 // NewTextArea creates a new textarea prompt for the questionnaire system
 func NewTextArea(message, defaultValue string) *TextArea {
-	component := NewTextComponentForEdit(message, defaultValue)
+	component := NewTextComponent(TextComponentOptions{
+		Mode:         EditMode,
+		Message:      message,
+		DefaultValue: defaultValue,
+		Focused:      true,
+	})
 	return &TextArea{
 		component: component,
 	}
@@ -499,27 +502,24 @@ func (t *TextArea) SetFocused(focused bool) {
 
 // Value returns the current value
 func (t *TextArea) Value() interface{} {
-	if t.component.cancelled {
-		return nil
-	}
-	return strings.TrimSpace(t.component.textarea.Value())
+	return t.component.Value()
 }
 
 // IsCancelled returns true if the user pressed ESC
 func (t *TextArea) IsCancelled() bool {
-	return t.component.cancelled
+	return t.component.IsCancelled()
 }
 
 func (t *TextArea) Update(msg tea.Msg) (Prompt, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "esc":
-			// User wants to cancel
+		cancelled, submitted := handleEditModeKeys(msg.String())
+		if cancelled {
 			t.component.cancelled = true
 			return t, nil
-		case "ctrl+d":
-			// User wants to submit (alternative to enter since enter adds newlines)
+		}
+		if submitted {
+			t.component.submitted = true
 			return t, nil
 		}
 	}
@@ -530,30 +530,5 @@ func (t *TextArea) Update(msg tea.Msg) (Prompt, tea.Cmd) {
 }
 
 func (t *TextArea) Render() string {
-	var b strings.Builder
-
-	// Question message
-	style := blurredStyle
-	if t.component.focused {
-		style = focusedStyle
-	}
-	b.WriteString(style.Render(t.component.message))
-	b.WriteString("\n")
-
-	// Instructions
-	if t.component.focused {
-		b.WriteString(helpStyle.Render("  Use Ctrl+D to submit, ESC to cancel"))
-		b.WriteString("\n")
-	}
-
-	// TextArea
-	b.WriteString(t.component.textarea.View())
-
-	// Error message
-	if t.component.error != "" {
-		b.WriteString("\n")
-		b.WriteString(errorStyle.Render("✗ " + t.component.error))
-	}
-
-	return b.String()
+	return renderEditMode(t.component.message, t.component.focused, t.component.textarea, t.component.error)
 }

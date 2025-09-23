@@ -52,6 +52,50 @@ func NewDocumentationAgent(provider LLMProvider, packageRoot string) (*Documenta
 	}, nil
 }
 
+// logAgentResponse logs debug information about the agent response
+func (d *DocumentationAgent) logAgentResponse(result *TaskResult) {
+	logger.Debugf("DEBUG: Full agent task response follows (may contain sensitive content)")
+	logger.Debugf("Agent task response - Success: %t", result.Success)
+	logger.Debugf("Agent task response - FinalContent: %s", result.FinalContent)
+	logger.Debugf("Agent task response - Conversation entries: %d", len(result.Conversation))
+	for i, entry := range result.Conversation {
+		logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d",
+			i, entry.Type, len(entry.Content))
+		logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
+	}
+}
+
+// executeTaskWithLogging executes a task and logs the result
+func (d *DocumentationAgent) executeTaskWithLogging(ctx context.Context, prompt string) (*TaskResult, error) {
+	fmt.Println("🤖 LLM Agent is working...")
+
+	result, err := d.agent.ExecuteTask(ctx, prompt)
+	if err != nil {
+		fmt.Println("❌ Agent task failed")
+		return nil, fmt.Errorf("agent task failed: %w", err)
+	}
+
+	fmt.Println("✅ Task completed")
+	d.logAgentResponse(result)
+	return result, nil
+}
+
+// handleReadmeUpdate checks if README was updated and reports the result
+func (d *DocumentationAgent) handleReadmeUpdate() (bool, error) {
+	readmeUpdated := d.checkReadmeUpdated()
+	if !readmeUpdated {
+		return false, nil
+	}
+
+	content, err := d.readCurrentReadme()
+	if err != nil || content == "" {
+		return false, err
+	}
+
+	fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
+	return true, nil
+}
+
 // UpdateDocumentation runs the documentation update process
 func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInteractive bool) error {
 	// Read package manifest for context
@@ -67,249 +111,270 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 	prompt := d.buildInitialPrompt(manifest)
 
 	if nonInteractive {
-		fmt.Println("Starting non-interactive documentation update process...")
-		fmt.Println("The LLM agent will analyze your package and generate documentation automatically.")
-		fmt.Println()
-
-		// Execute the task once
-		fmt.Println("🤖 LLM Agent is working...")
-
-		result, err := d.agent.ExecuteTask(ctx, prompt)
-
-		if err != nil {
-			fmt.Println("❌ Agent task failed")
-			return fmt.Errorf("agent task failed: %w", err)
-		} else {
-			fmt.Println("✅ Task completed")
-		}
-
-		// Debug logging for the full agent task response
-		logger.Debugf("DEBUG: Full agent task response follows (may contain sensitive content)")
-		logger.Debugf("Agent task response - Success: %t", result.Success)
-		logger.Debugf("Agent task response - FinalContent: %s", result.FinalContent)
-		logger.Debugf("Agent task response - Conversation entries: %d", len(result.Conversation))
-		for i, entry := range result.Conversation {
-			logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d",
-				i, entry.Type, len(entry.Content))
-			logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
-		}
-
-		// Show the result
-		fmt.Println("\n📝 Agent Response:")
-		fmt.Println(strings.Repeat("-", 50))
-		fmt.Println(result.FinalContent)
-		fmt.Println(strings.Repeat("-", 50))
-
-		// Check if the response indicates an error occurred
-		if isErrorResponse(result.FinalContent) {
-			fmt.Println("\n❌ Error detected in LLM response.")
-			fmt.Println("In non-interactive mode, exiting due to error.")
-			return fmt.Errorf("LLM agent encountered an error: %s", result.FinalContent)
-		}
-
-		// Check if README.md was updated
-		readmeUpdated := d.checkReadmeUpdated()
-		if readmeUpdated {
-			content, err := d.readCurrentReadme()
-			if err == nil && content != "" {
-				fmt.Println("\n📄 README.md was updated successfully!")
-				fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
-				return nil
-			}
-		}
-
-		// If no README was updated, try once more with a specific prompt
-		fmt.Println("⚠️  No README.md was updated. Trying again with specific instructions...")
-		specificPrompt := "You haven't updated a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis. This is required to complete the task."
-
-		_, err = d.agent.ExecuteTask(ctx, specificPrompt)
-		if err != nil {
-			return fmt.Errorf("second attempt failed: %w", err)
-		}
-
-		// Check again
-		readmeUpdated = d.checkReadmeUpdated()
-		if readmeUpdated {
-			content, err := d.readCurrentReadme()
-			if err == nil && content != "" {
-				fmt.Println("\n📄 README.md was updated on second attempt!")
-				fmt.Printf("✅ Documentation update completed! (%d characters written)\n", len(content))
-				return nil
-			}
-		}
-
-		return fmt.Errorf("failed to create README.md after two attempts")
+		return d.runNonInteractiveMode(ctx, prompt)
 	}
 
-	// Interactive mode
+	return d.runInteractiveMode(ctx, prompt)
+}
+
+// runNonInteractiveMode handles the non-interactive documentation update flow
+func (d *DocumentationAgent) runNonInteractiveMode(ctx context.Context, prompt string) error {
+	fmt.Println("Starting non-interactive documentation update process...")
+	fmt.Println("The LLM agent will analyze your package and generate documentation automatically.")
+	fmt.Println()
+
+	// First attempt
+	result, err := d.executeTaskWithLogging(ctx, prompt)
+	if err != nil {
+		return err
+	}
+
+	// Show the result
+	fmt.Println("\n📝 Agent Response:")
+	fmt.Println(strings.Repeat("-", 50))
+	fmt.Println(result.FinalContent)
+	fmt.Println(strings.Repeat("-", 50))
+
+	// Check for errors in response
+	if isErrorResponse(result.FinalContent) {
+		fmt.Println("\n❌ Error detected in LLM response.")
+		fmt.Println("In non-interactive mode, exiting due to error.")
+		return fmt.Errorf("LLM agent encountered an error: %s", result.FinalContent)
+	}
+
+	// Check if README was successfully updated
+	if updated, err := d.handleReadmeUpdate(); updated {
+		fmt.Println("\n📄 README.md was updated successfully!")
+		return err
+	}
+
+	// Second attempt with specific instructions
+	fmt.Println("⚠️  No README.md was updated. Trying again with specific instructions...")
+	specificPrompt := "You haven't updated a README.md file yet. Please create the README.md file in the _dev/build/docs/ directory based on your analysis. This is required to complete the task."
+
+	if _, err := d.executeTaskWithLogging(ctx, specificPrompt); err != nil {
+		return fmt.Errorf("second attempt failed: %w", err)
+	}
+
+	// Final check
+	if updated, err := d.handleReadmeUpdate(); updated {
+		fmt.Println("\n📄 README.md was updated on second attempt!")
+		return err
+	}
+
+	return fmt.Errorf("failed to create README.md after two attempts")
+}
+
+// runInteractiveMode handles the interactive documentation update flow
+func (d *DocumentationAgent) runInteractiveMode(ctx context.Context, prompt string) error {
 	fmt.Println("Starting documentation update process...")
 	fmt.Println("The LLM agent will analyze your package and update the documentation.")
 	fmt.Println()
 
-	// Interactive loop
 	for {
-		fmt.Println("🤖 LLM Agent is working...")
-
 		// Execute the task
-		result, err := d.agent.ExecuteTask(ctx, prompt)
-
+		result, err := d.executeTaskWithLogging(ctx, prompt)
 		if err != nil {
-			fmt.Println("❌ Agent task failed")
-			return fmt.Errorf("agent task failed: %w", err)
-		} else {
-			fmt.Println("✅ Task completed")
+			return err
 		}
 
-		// Debug logging for the full agent task response
-		logger.Debugf("DEBUG: Full agent task response follows (may contain sensitive content)")
-		logger.Debugf("Agent task response - Success: %t", result.Success)
-		logger.Debugf("Agent task response - FinalContent: %s", result.FinalContent)
-		logger.Debugf("Agent task response - Conversation entries: %d", len(result.Conversation))
-		for i, entry := range result.Conversation {
-			logger.Debugf("Agent task response - Conversation[%d]: type=%s, content_length=%d",
-				i, entry.Type, len(entry.Content))
-			logger.Tracef("Agent task response - Conversation[%d]: content=%s", i, entry.Content)
-		}
-
-		// Check if the response indicates an error occurred
+		// Handle error responses
 		if isErrorResponse(result.FinalContent) {
-			fmt.Println("\n❌ Error detected in LLM response.")
-
-			// Ask user what to do about the error
-			errorPrompt := tui.NewSelect("What would you like to do?", []string{
-				"Try again",
-				"Exit",
-			}, "Try again")
-
-			var errorAction string
-			err = tui.AskOne(errorPrompt, &errorAction)
+			newPrompt, shouldContinue, err := d.handleInteractiveError()
 			if err != nil {
-				return fmt.Errorf("prompt failed: %w", err)
+				return err
 			}
-
-			if errorAction == "Exit" {
-				fmt.Println("⚠️  Exiting due to LLM error.")
+			if !shouldContinue {
 				d.restoreOriginalReadme()
 				return fmt.Errorf("user chose to exit due to LLM error")
 			}
-
-			// Continue the loop to try again with comprehensive context
-			prompt = d.buildRevisionPrompt("The previous attempt encountered an error. Please try a different approach to analyze the package and create/update the documentation.")
+			prompt = newPrompt
 			continue
 		}
 
-		// Check if README.md was updated and show processed content in scrollable viewer
-		readmeUpdated := d.checkReadmeUpdated()
-		if readmeUpdated {
-			sourceContent, err := d.readCurrentReadme()
-			if err == nil && sourceContent != "" {
-				// Generate the processed README using the same logic as elastic-package build
-				renderedContent, shouldBeRendered, err := docs.GenerateReadme("README.md", d.packageRoot)
-				if err != nil || !shouldBeRendered {
-					fmt.Println("\n⚠️  The generated README.md could not be rendered.")
-					fmt.Println("It's recommended that you do not accept this version (ask for revisions or cancel).")
-				} else {
-					// Show the processed/rendered content
-					processedContentStr := string(renderedContent)
-					fmt.Printf("📊 Processed README stats: %d characters, %d lines\n", len(processedContentStr), strings.Count(processedContentStr, "\n")+1)
+		// Display README content if updated
+		readmeUpdated := d.displayReadmeIfUpdated()
 
-					title := "📄 Processed README.md (as generated by elastic-package build)"
-					if err := tui.ShowContent(title, processedContentStr); err != nil {
-						// Fallback to simple print if viewer fails
-						fmt.Printf("\n%s:\n", title)
-						fmt.Println(strings.Repeat("=", 70))
-						fmt.Println(processedContentStr)
-						fmt.Println(strings.Repeat("=", 70))
-					}
-				}
-			} else {
-				fmt.Println("\n⚠️  README.md file exists but could not be read or is empty")
-			}
-		} else {
-			fmt.Println("\n⚠️  README.md file not updated")
-		}
-
-		// Ask user what to do next
-		selectPrompt := tui.NewSelect("What would you like to do?", []string{
-			"Accept and finalize",
-			"Request changes",
-			"Cancel",
-		}, "Accept and finalize")
-
-		var action string
-		err = tui.AskOne(selectPrompt, &action)
+		// Get user action
+		action, err := d.getUserAction()
 		if err != nil {
-			return fmt.Errorf("prompt failed: %w", err)
+			return err
 		}
 
-		switch action {
-		case "Accept and finalize":
-			if readmeUpdated {
-				// Validate that human-edited sections were preserved if we had original content
-				if d.originalReadmeContent != nil {
-					if newContent, err := d.readCurrentReadme(); err == nil {
-						warnings := d.validatePreservedSections(*d.originalReadmeContent, newContent)
-						if len(warnings) > 0 {
-							fmt.Println("⚠️  Warning: Some human-edited sections may not have been preserved:")
-							for _, warning := range warnings {
-								fmt.Printf("   - %s\n", warning)
-							}
-							fmt.Println("   Please review the documentation to ensure important content wasn't lost.")
-						}
-					}
-				}
-
-				fmt.Println("✅ Documentation update completed!")
-				return nil
-			}
-
-			// No content found in response and no file exists
-			// Ask user if they want to continue or exit anyway
-			continuePrompt := tui.NewSelect("README.md file wasn't updated. What would you like to do?", []string{
-				"Try again",
-				"Exit anyway",
-			}, "Try again")
-
-			var continueChoice string
-			err = tui.AskOne(continuePrompt, &continueChoice)
-			if err != nil {
-				return fmt.Errorf("prompt failed: %w", err)
-			}
-
-			if continueChoice == "Exit anyway" {
-				fmt.Println("⚠️  Exiting without creating README.md file.")
-				d.restoreOriginalReadme()
-				return nil
-			}
-
-			fmt.Println("🔄 Trying again to create README.md...")
-			prompt = d.buildRevisionPrompt("You haven't written a README.md file yet. Please write the README.md file in the _dev/build/docs/ directory based on your analysis.")
-
-		case "Request changes":
-			changes, err := tui.AskTextArea("What changes would you like to make to the documentation?")
-			if err != nil {
-				// Check if user cancelled (pressed ESC)
-				if errors.Is(err, tui.ErrCancelled) {
-					fmt.Println("⚠️  Changes request cancelled.")
-					continue // Go back to the main menu
-				}
-				return fmt.Errorf("prompt failed: %w", err)
-			}
-
-			// Check if no changes were provided
-			if strings.TrimSpace(changes) == "" {
-				fmt.Println("⚠️  No changes specified. Please try again.")
-				continue
-			}
-
-			prompt = d.buildRevisionPrompt(changes)
-
-		case "Cancel":
-			fmt.Println("❌ Documentation update cancelled.")
-			d.restoreOriginalReadme()
+		// Handle user action
+		newPrompt, shouldContinue, shouldExit, err := d.handleUserAction(action, readmeUpdated)
+		if err != nil {
+			return err
+		}
+		if shouldExit {
 			return nil
 		}
+		if shouldContinue {
+			prompt = newPrompt
+			continue
+		}
 	}
+}
+
+// handleInteractiveError handles error responses in interactive mode
+func (d *DocumentationAgent) handleInteractiveError() (string, bool, error) {
+	fmt.Println("\n❌ Error detected in LLM response.")
+
+	errorPrompt := tui.NewSelect("What would you like to do?", []string{
+		"Try again",
+		"Exit",
+	}, "Try again")
+
+	var errorAction string
+	err := tui.AskOne(errorPrompt, &errorAction)
+	if err != nil {
+		return "", false, fmt.Errorf("prompt failed: %w", err)
+	}
+
+	if errorAction == "Exit" {
+		fmt.Println("⚠️  Exiting due to LLM error.")
+		return "", false, nil
+	}
+
+	// Continue with retry prompt
+	newPrompt := d.buildRevisionPrompt("The previous attempt encountered an error. Please try a different approach to analyze the package and create/update the documentation.")
+	return newPrompt, true, nil
+}
+
+// displayReadmeIfUpdated shows README content if it was updated
+func (d *DocumentationAgent) displayReadmeIfUpdated() bool {
+	readmeUpdated := d.checkReadmeUpdated()
+	if !readmeUpdated {
+		fmt.Println("\n⚠️  README.md file not updated")
+		return false
+	}
+
+	sourceContent, err := d.readCurrentReadme()
+	if err != nil || sourceContent == "" {
+		fmt.Println("\n⚠️  README.md file exists but could not be read or is empty")
+		return false
+	}
+
+	// Try to render the content
+	renderedContent, shouldBeRendered, err := docs.GenerateReadme("README.md", d.packageRoot)
+	if err != nil || !shouldBeRendered {
+		fmt.Println("\n⚠️  The generated README.md could not be rendered.")
+		fmt.Println("It's recommended that you do not accept this version (ask for revisions or cancel).")
+	} else {
+		// Show the processed/rendered content
+		processedContentStr := string(renderedContent)
+		fmt.Printf("📊 Processed README stats: %d characters, %d lines\n", len(processedContentStr), strings.Count(processedContentStr, "\n")+1)
+
+		title := "📄 Processed README.md (as generated by elastic-package build)"
+		if err := tui.ShowContent(title, processedContentStr); err != nil {
+			// Fallback to simple print if viewer fails
+			fmt.Printf("\n%s:\n", title)
+			fmt.Println(strings.Repeat("=", 70))
+			fmt.Println(processedContentStr)
+			fmt.Println(strings.Repeat("=", 70))
+		}
+	}
+
+	return true
+}
+
+// getUserAction prompts the user for their next action
+func (d *DocumentationAgent) getUserAction() (string, error) {
+	selectPrompt := tui.NewSelect("What would you like to do?", []string{
+		"Accept and finalize",
+		"Request changes",
+		"Cancel",
+	}, "Accept and finalize")
+
+	var action string
+	err := tui.AskOne(selectPrompt, &action)
+	if err != nil {
+		return "", fmt.Errorf("prompt failed: %w", err)
+	}
+
+	return action, nil
+}
+
+// handleUserAction processes the user's chosen action
+func (d *DocumentationAgent) handleUserAction(action string, readmeUpdated bool) (string, bool, bool, error) {
+	switch action {
+	case "Accept and finalize":
+		return d.handleAcceptAction(readmeUpdated)
+	case "Request changes":
+		return d.handleRequestChanges()
+	case "Cancel":
+		fmt.Println("❌ Documentation update cancelled.")
+		d.restoreOriginalReadme()
+		return "", false, true, nil
+	default:
+		return "", false, false, fmt.Errorf("unknown action: %s", action)
+	}
+}
+
+// handleAcceptAction handles the "Accept and finalize" action
+func (d *DocumentationAgent) handleAcceptAction(readmeUpdated bool) (string, bool, bool, error) {
+	if readmeUpdated {
+		// Validate preserved sections if we had original content
+		if d.originalReadmeContent != nil {
+			if newContent, err := d.readCurrentReadme(); err == nil {
+				warnings := d.validatePreservedSections(*d.originalReadmeContent, newContent)
+				if len(warnings) > 0 {
+					fmt.Println("⚠️  Warning: Some human-edited sections may not have been preserved:")
+					for _, warning := range warnings {
+						fmt.Printf("   - %s\n", warning)
+					}
+					fmt.Println("   Please review the documentation to ensure important content wasn't lost.")
+				}
+			}
+		}
+
+		fmt.Println("✅ Documentation update completed!")
+		return "", false, true, nil
+	}
+
+	// README wasn't updated - ask user what to do
+	continuePrompt := tui.NewSelect("README.md file wasn't updated. What would you like to do?", []string{
+		"Try again",
+		"Exit anyway",
+	}, "Try again")
+
+	var continueChoice string
+	err := tui.AskOne(continuePrompt, &continueChoice)
+	if err != nil {
+		return "", false, false, fmt.Errorf("prompt failed: %w", err)
+	}
+
+	if continueChoice == "Exit anyway" {
+		fmt.Println("⚠️  Exiting without creating README.md file.")
+		d.restoreOriginalReadme()
+		return "", false, true, nil
+	}
+
+	fmt.Println("🔄 Trying again to create README.md...")
+	newPrompt := d.buildRevisionPrompt("You haven't written a README.md file yet. Please write the README.md file in the _dev/build/docs/ directory based on your analysis.")
+	return newPrompt, true, false, nil
+}
+
+// handleRequestChanges handles the "Request changes" action
+func (d *DocumentationAgent) handleRequestChanges() (string, bool, bool, error) {
+	changes, err := tui.AskTextArea("What changes would you like to make to the documentation?")
+	if err != nil {
+		// Check if user cancelled
+		if errors.Is(err, tui.ErrCancelled) {
+			fmt.Println("⚠️  Changes request cancelled.")
+			return "", true, false, nil // Continue the loop
+		}
+		return "", false, false, fmt.Errorf("prompt failed: %w", err)
+	}
+
+	// Check if no changes were provided
+	if strings.TrimSpace(changes) == "" {
+		fmt.Println("⚠️  No changes specified. Please try again.")
+		return "", true, false, nil // Continue the loop
+	}
+
+	newPrompt := d.buildRevisionPrompt(changes)
+	return newPrompt, true, false, nil
 }
 
 // buildInitialPrompt creates the initial prompt for the LLM
