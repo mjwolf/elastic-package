@@ -40,97 +40,37 @@ type ValidatorFunc func(interface{}) error
 
 // ANSI 16 color constants
 const (
-	ansiBlack         = "0"
-	ansiRed           = "1"
-	ansiGreen         = "2"
-	ansiYellow        = "3"
-	ansiBlue          = "4"
-	ansiMagenta       = "5"
-	ansiCyan          = "6"
-	ansiWhite         = "7"
-	ansiBrightBlack   = "8" // Gray
-	ansiBrightRed     = "9"
-	ansiBrightGreen   = "10"
-	ansiBrightYellow  = "11"
-	ansiBrightBlue    = "12"
-	ansiBrightMagenta = "13"
-	ansiBrightCyan    = "14"
-	ansiBrightWhite   = "15"
+	ansiBlack         = lipgloss.Color("0")
+	ansiRed           = lipgloss.Color("1")
+	ansiGreen         = lipgloss.Color("2")
+	ansiYellow        = lipgloss.Color("3")
+	ansiBlue          = lipgloss.Color("4")
+	ansiMagenta       = lipgloss.Color("5")
+	ansiCyan          = lipgloss.Color("6")
+	ansiWhite         = lipgloss.Color("7")
+	ansiBrightBlack   = lipgloss.Color("8") // Gray
+	ansiBrightRed     = lipgloss.Color("9")
+	ansiBrightGreen   = lipgloss.Color("10")
+	ansiBrightYellow  = lipgloss.Color("11")
+	ansiBrightBlue    = lipgloss.Color("12")
+	ansiBrightMagenta = lipgloss.Color("13")
+	ansiBrightCyan    = lipgloss.Color("14")
+	ansiBrightWhite   = lipgloss.Color("15")
 )
 
-// colorSupported checks if color output is supported based on environment variables
-func colorSupported() bool {
-	// Check NO_COLOR environment variable (https://no-color.org/)
-	if os.Getenv("NO_COLOR") != "" {
-		return false
-	}
-
-	// Check TERM environment variable
-	term := os.Getenv("TERM")
-	switch {
-	case term == "":
-		return false
-	case term == "dumb":
-		return false
-	default:
-		// Default to supporting color for most modern terminals
-		return true
-	}
-}
-
-// getColor returns the color if colors are supported, empty string otherwise
-func getColor(ansiColor string) lipgloss.Color {
-	if !colorSupported() {
-		return lipgloss.Color("")
-	}
-	return lipgloss.Color(ansiColor)
-}
-
-// Styles for consistent UI using ANSI 16 colors with NO_COLOR support
 var (
-	focusedStyle    lipgloss.Style
-	blurredStyle    lipgloss.Style
-	errorStyle      lipgloss.Style
-	helpStyle       lipgloss.Style
-	selectedStyle   lipgloss.Style
-	unselectedStyle lipgloss.Style
-
-	// Console output styles for consistent coloring across the application
-	warningStyle lipgloss.Style
-	infoStyle    lipgloss.Style
-	successStyle lipgloss.Style
-)
-
-// Initialize styles based on color support
-func init() {
-	if colorSupported() {
-		// Color mode: use colors
-		focusedStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightMagenta)).Bold(true)
-		blurredStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightBlack))
-		errorStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightRed))
-		helpStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightBlack))
-		selectedStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightGreen)).Bold(true)
-		unselectedStyle = lipgloss.NewStyle().Foreground(getColor(ansiBrightBlack))
+		focusedStyle = lipgloss.NewStyle().Foreground(ansiBrightMagenta).Bold(true)
+		blurredStyle = lipgloss.NewStyle().Foreground(ansiBrightBlack)
+		errorStyle = lipgloss.NewStyle().Foreground(ansiBrightRed)
+		helpStyle = lipgloss.NewStyle().Foreground(ansiBrightBlack)
+		selectedStyle = lipgloss.NewStyle().Foreground(ansiBrightGreen).Bold(true)
+		unselectedStyle = lipgloss.NewStyle().Foreground(ansiBrightBlack)
 
 		// Console output styles
-		warningStyle = lipgloss.NewStyle().Foreground(getColor(ansiYellow))
-		infoStyle = lipgloss.NewStyle().Foreground(getColor(ansiCyan))
-		successStyle = lipgloss.NewStyle().Foreground(getColor(ansiGreen)).Bold(true)
-	} else {
-		// NO_COLOR mode: use text formatting only
-		focusedStyle = lipgloss.NewStyle().Bold(true)
-		blurredStyle = lipgloss.NewStyle()
-		errorStyle = lipgloss.NewStyle().Bold(true)
-		helpStyle = lipgloss.NewStyle()
-		selectedStyle = lipgloss.NewStyle().Bold(true)
-		unselectedStyle = lipgloss.NewStyle()
-
-		// Console output styles (NO_COLOR mode)
-		warningStyle = lipgloss.NewStyle()
-		infoStyle = lipgloss.NewStyle()
-		successStyle = lipgloss.NewStyle().Bold(true)
-	}
-}
+		warningStyle = lipgloss.NewStyle().Foreground(ansiYellow)
+		infoStyle = lipgloss.NewStyle().Foreground(ansiCyan)
+		successStyle = lipgloss.NewStyle().Foreground(ansiGreen).Bold(true)
+)
 
 // ComposeValidators combines multiple validators
 func ComposeValidators(validators ...ValidatorFunc) ValidatorFunc {
@@ -272,9 +212,6 @@ func DefaultKibanaVersionConditionValue() string {
 	return "^" + v.String()
 }
 
-// Console output style functions for consistent coloring across the application
-// These respect the NO_COLOR environment variable and provide consistent styling
-
 // Warning renders text in warning color
 func Warning(text string) string {
 	return warningStyle.Render(text)
@@ -295,11 +232,3 @@ func Error(text string) string {
 	return errorStyle.Render(text)
 }
 
-// Compile-time interface checks to ensure all prompt types implement the Prompt interface
-var (
-	_ Prompt = &Input{}
-	_ Prompt = &Select{}
-	_ Prompt = &Confirm{}
-	_ Prompt = &MultiSelect{}
-	_ Prompt = &TextArea{}
-)
