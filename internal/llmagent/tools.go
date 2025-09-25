@@ -6,12 +6,21 @@ package llmagent
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/elastic/elastic-package/internal/packages/archetype"
 )
+
+// The embedded example_readme is an example of a high-quality integration readme, following the static template archetype,
+// which will help the LLM follow an example.
+//
+//go:embed _static/example_readme.md
+var exampleReadmeContent string
 
 // PackageTools creates the tools available to the LLM for package operations.
 // These tools do not allow access to `docs/`, to prevent the LLM from confusing the generated and non-generated README versions.
@@ -65,6 +74,26 @@ func PackageTools(packageRoot string) []Tool {
 				"required": []string{"path", "content"},
 			},
 			Handler: writeFileHandler(packageRoot),
+		},
+		{
+			Name:        "get_readme_template",
+			Description: "Get the README.md template that should be used as the structure for generating package documentation. This template contains the required sections and format.",
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+				"required":   []string{},
+			},
+			Handler: getReadmeTemplateHandler(),
+		},
+		{
+			Name:        "get_example_readme",
+			Description: "Get a high-quality example README.md that demonstrates the target quality, level of detail, and formatting. Use this as a reference for style and content structure.",
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+				"required":   []string{},
+			},
+			Handler: getExampleReadmeHandler(),
 		},
 	}
 }
@@ -195,5 +224,22 @@ func writeFileHandler(packageRoot string) ToolHandler {
 		}
 
 		return &ToolResult{Content: fmt.Sprintf("Successfully wrote %d bytes to %s", len(args.Content), args.Path)}, nil
+	}
+}
+
+// getReadmeTemplateHandler returns a handler for the get_readme_template tool
+func getReadmeTemplateHandler() ToolHandler {
+	return func(ctx context.Context, arguments string) (*ToolResult, error) {
+		// Get the embedded template content
+		templateContent := archetype.GetPackageDocsReadmeTemplate()
+		return &ToolResult{Content: templateContent}, nil
+	}
+}
+
+// getExampleReadmeHandler returns a handler for the get_example_readme tool
+func getExampleReadmeHandler() ToolHandler {
+	return func(ctx context.Context, arguments string) (*ToolResult, error) {
+		// Get the embedded example content
+		return &ToolResult{Content: exampleReadmeContent}, nil
 	}
 }

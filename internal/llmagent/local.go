@@ -139,7 +139,7 @@ func (l *LocalProvider) GenerateResponse(ctx context.Context, prompt string, too
 				Content: prompt,
 			},
 		},
-		MaxTokens:   4096,
+		MaxTokens:   8192, // Increased for documentation generation
 		Temperature: 0.7,
 		Stream:      false,
 	}

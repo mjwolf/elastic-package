@@ -76,7 +76,7 @@ func NewBedrockProvider(config BedrockConfig) *BedrockProvider {
 		config.Endpoint = fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com", config.Region)
 	}
 	if config.MaxTokens == 0 {
-		config.MaxTokens = 4096
+		config.MaxTokens = 8192 // Increased for documentation generation
 	}
 
 	// Debug logging with masked API key for security

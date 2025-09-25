@@ -6,7 +6,6 @@ package llmagent
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -16,15 +15,8 @@ import (
 	"github.com/elastic/elastic-package/internal/docs"
 	"github.com/elastic/elastic-package/internal/logger"
 	"github.com/elastic/elastic-package/internal/packages"
-	"github.com/elastic/elastic-package/internal/packages/archetype"
 	"github.com/elastic/elastic-package/internal/tui"
 )
-
-// The embedded example_readme is an example of a high-quality integration readme, following the static template archetype,
-// which will help the LLM follow an example.
-//
-//go:embed _static/example_readme.md
-var exampleReadmeContent string
 
 const (
 	initialPrompt = `You are an expert technical writer specializing in documentation for Elastic Integrations. Your mission is to create a comprehensive, user-friendly README.md file by synthesizing information from the integration's source code, external research, and a provided template.
@@ -46,52 +38,64 @@ Critical Directives (Follow These Strictly):
 2.  Preserve Human Content: You MUST preserve any content between <!-- HUMAN-EDITED START --> and <!-- HUMAN-EDITED END --> comment blocks. This content is non-negotiable and must be kept verbatim in its original position.
 3.  No Hallucination: If you cannot find a piece of information in the package files or through web search, DO NOT invent it. Instead, insert a clear placeholder in the document: << INFORMATION NOT AVAILABLE - PLEASE UPDATE >>.
 
+Available Tools (Use These for All Operations):
+
+* list_directory: List files and directories in the package. Use path="" for package root.
+* read_file: Read contents of files within the package. Provide relative path from package root.
+* write_file: Write content to files. Can only write to _dev/build/docs/ directory.
+* get_readme_template: Get the README.md template structure you must follow.
+* get_example_readme: Get a high-quality example README for reference on style and quality.
+
+Tool Usage Guidelines:
+- Always use get_readme_template first to understand the required structure
+- Use get_example_readme to understand the target quality and style
+- Use list_directory and read_file extensively to analyze the package structure and content
+- All file paths for read_file must be relative to package root (e.g., "manifest.yml", "data_stream/logs/manifest.yml")
+- Only use write_file for the final README.md in _dev/build/docs/README.md
+
 Your Step-by-Step Process:
 
-1.  Initial Analysis:
+1.  Get Template and Example:
+    * First, call get_readme_template to get the structure you must follow
+    * Call get_example_readme to understand the target quality and style
+
+2.  Initial Analysis:
     * Begin by listing the contents of the package to understand its structure.
     * Read the existing _dev/build/docs/README.md (if it exists) to identify its current state and locate any human-edited sections that must be preserved.
 
-2.  Internal Information Gathering:
+3.  Internal Information Gathering:
     * Analyze the package files to extract key details. Pay close attention to:
         * manifest.yml: For top-level metadata, owner, license, and supported Elasticsearch versions.
         * data_stream/*/manifest.yml: To compile a list of all data streams, their types (logs, metrics), and a brief description of the data each collects.
         * data_stream/*/fields/fields.yml: To understand the data schema and important fields. Mentioning a few key fields can be helpful for users.
 
-3.  External Information Gathering:
+4.  External Information Gathering:
     * Use your web search tool to find the official documentation for the service or technology this integration supports (e.g., "NGINX logs setup," "AWS S3 access logs format").
     * Your goal is to find **actionable, step-by-step instructions** for users on how to configure the *source system* to generate the data this integration is designed to collect.
 
-4.  Drafting the Documentation:
-    * Using the provided template, begin writing the README.md.
+5.  Drafting the Documentation:
+    * Using the template from get_readme_template, begin writing the README.md.
+    * Follow the style and quality demonstrated in the example from get_example_readme.
     * Integrate the information gathered from the package files and your web research into the appropriate sections.
     * Re-insert any preserved human-edited sections into their original locations.
 
-5.  Review and Finalize:
+6.  Review and Finalize:
     * Read through your generated README to ensure it is clear, accurate, and easy to follow.
     * Verify that all critical directives (file restrictions, content preservation) have been followed.
-    * Confirm that the tone and style align with the provided high-quality example.
+    * Confirm that the tone and style align with the high-quality example.
 
-6. Write the results:
-    * Write the generated README to _dev/build/docs/README.md.
+7. Write the results:
+    * Write the generated README to _dev/build/docs/README.md using the write_file tool.
     * Do not return the results as a response in this conversation.
 
 Style and Content Guidance:
 
 * Audience & Tone: Write for a technical audience (e.g., DevOps Engineers, SREs, Security Analysts). The tone should be professional, clear, and direct. Use active voice.
-* Template is a Blueprint: The provided template is your required structure. Follow it closely.
-* The Example is Your "Gold Standard": The provided example README demonstrates the target quality, level of detail, and formatting. Emulate its style, especially in the "Configuration" and "Setup" sections. Explain *why* a step is needed, not just *what* the step is.
+* Template is a Blueprint: The template from get_readme_template is your required structure. Follow it closely.
+* The Example is Your "Gold Standard": The example from get_example_readme demonstrates the target quality, level of detail, and formatting. Emulate its style, especially in the "Configuration" and "Setup" sections. Explain *why* a step is needed, not just *what* the step is.
 * Be Specific: Instead of saying "configure the service," provide a concrete configuration snippet or a numbered list of steps. Link to official external documentation where appropriate to provide users with more depth.
 
-Assets:
-
-* Template to Follow:
-    %s
-
-* Example of a High-Quality README:
-    %s
-
-Please begin. Start with the "Initial Analysis" step.`
+Please begin. Start by getting the template and example, then proceed with the "Initial Analysis" step.`
 	revisionPrompt = `You are continuing to work on documentation for an Elastic Integration. You have access to tools to analyze the package and make changes.
 
 CURRENT TASK: Make specific revisions to the existing documentation based on user feedback.
@@ -109,21 +113,31 @@ Critical Directives (Follow These Strictly):
 3. Read Current Content: First read the existing _dev/build/docs/README.md to understand the current state.
 4. No Hallucination: If you need information not available in package files, insert placeholders: << INFORMATION NOT AVAILABLE - PLEASE UPDATE >>.
 
+Available Tools (Use These for All Operations):
+
+* list_directory: List files and directories in the package. Use path="" for package root.
+* read_file: Read contents of files within the package. Provide relative path from package root.
+* write_file: Write content to files. Can only write to _dev/build/docs/ directory.
+* get_readme_template: Get the README.md template structure you must follow.
+* get_example_readme: Get a high-quality example README for reference on style and quality.
+
+Tool Usage Guidelines:
+- Use get_readme_template to understand the required structure if needed
+- Use get_example_readme to understand the target quality and style if needed
+- Use list_directory and read_file extensively to analyze the package structure and content
+- All file paths for read_file must be relative to package root (e.g., "manifest.yml", "data_stream/logs/manifest.yml")
+- Only use write_file for the final README.md in _dev/build/docs/README.md
+
 Your Step-by-Step Process:
 1. Read the current _dev/build/docs/README.md file to understand what exists
-2. Analyze the requested changes carefully
-3. Use available tools to gather any additional information needed
-4. Make the specific changes requested while preserving existing good content
-5. Ensure the result is comprehensive and follows Elastic documentation standards
-6. Write the generated README to _dev/build/docs/README.md
+2. If needed, get template and example references using get_readme_template and get_example_readme
+3. Analyze the requested changes carefully
+4. Use available tools to gather any additional information needed
+5. Make the specific changes requested while preserving existing good content
+6. Ensure the result is comprehensive and follows Elastic documentation standards
+7. Write the generated README to _dev/build/docs/README.md using write_file
 
 User-Requested Changes:
-%s
-
-Template Reference:
-%s
-
-High-Quality Example:
 %s
 
 Begin by reading the current README.md file, then implement the requested changes thoughtfully.`
@@ -133,15 +147,11 @@ Begin by reading the current README.md file, then implement the requested change
 type DocumentationAgent struct {
 	agent                 *Agent
 	packageRoot           string
-	templateContent       string
 	originalReadmeContent *string // Stores original README content for restoration on cancel
 }
 
 // NewDocumentationAgent creates a new documentation agent
 func NewDocumentationAgent(provider LLMProvider, packageRoot string) (*DocumentationAgent, error) {
-	// Get the embedded template content
-	templateContent := archetype.GetPackageDocsReadmeTemplate()
-
 	// Create tools for package operations
 	tools := PackageTools(packageRoot)
 
@@ -149,9 +159,8 @@ func NewDocumentationAgent(provider LLMProvider, packageRoot string) (*Documenta
 	agent := NewAgent(provider, tools)
 
 	return &DocumentationAgent{
-		agent:           agent,
-		packageRoot:     packageRoot,
-		templateContent: templateContent,
+		agent:       agent,
+		packageRoot: packageRoot,
 	}, nil
 }
 
@@ -194,8 +203,28 @@ func (d *DocumentationAgent) runNonInteractiveMode(ctx context.Context, prompt s
 	fmt.Println(result.FinalContent)
 	fmt.Println(strings.Repeat("-", 50))
 
-	// Check for errors in response
-	if isErrorResponse(result.FinalContent) {
+	// Check for token limit messages first - these need special handling
+	if isTokenLimitMessage(result.FinalContent) {
+		fmt.Println("\n⚠️  LLM hit token limits. Switching to section-based generation...")
+		newPrompt, err := d.handleTokenLimitResponse(result.FinalContent)
+		if err != nil {
+			return fmt.Errorf("failed to handle token limit: %w", err)
+		}
+
+		// Retry with section-based approach
+		if _, err := d.executeTaskWithLogging(ctx, newPrompt); err != nil {
+			return fmt.Errorf("section-based retry failed: %w", err)
+		}
+
+		// Check if README was successfully updated after retry
+		if updated, err := d.handleReadmeUpdate(); updated {
+			fmt.Println("\n📄 README.md was updated successfully with section-based approach!")
+			return err
+		}
+	}
+
+	// Check for errors in response using enhanced detection with conversation context
+	if isTaskResultError(result.FinalContent, result.Conversation) {
 		fmt.Println("\n❌ Error detected in LLM response.")
 		fmt.Println("In non-interactive mode, exiting due to error.")
 		return fmt.Errorf("LLM agent encountered an error: %s", result.FinalContent)
@@ -237,8 +266,19 @@ func (d *DocumentationAgent) runInteractiveMode(ctx context.Context, prompt stri
 			return err
 		}
 
-		// Handle error responses
-		if isErrorResponse(result.FinalContent) {
+		// Check for token limit messages first - these need special handling
+		if isTokenLimitMessage(result.FinalContent) {
+			fmt.Println("\n⚠️  LLM hit token limits. Switching to section-based generation...")
+			newPrompt, err := d.handleTokenLimitResponse(result.FinalContent)
+			if err != nil {
+				return err
+			}
+			prompt = newPrompt
+			continue
+		}
+
+		// Handle error responses using enhanced detection with conversation context
+		if isTaskResultError(result.FinalContent, result.Conversation) {
 			newPrompt, shouldContinue, err := d.handleInteractiveError()
 			if err != nil {
 				return err
@@ -433,9 +473,7 @@ func (d *DocumentationAgent) buildInitialPrompt(manifest *packages.PackageManife
 		manifest.Title,
 		manifest.Type,
 		manifest.Version,
-		manifest.Description,
-		d.templateContent,
-		exampleReadmeContent)
+		manifest.Description)
 }
 
 // buildRevisionPrompt creates a comprehensive prompt for document revisions that includes all necessary context
@@ -453,9 +491,74 @@ func (d *DocumentationAgent) buildRevisionPrompt(changes string) string {
 		manifest.Type,
 		manifest.Version,
 		manifest.Description,
-		changes,
-		d.templateContent,
-		exampleReadmeContent)
+		changes)
+}
+
+// handleTokenLimitResponse creates a section-based prompt when LLM hits token limits
+func (d *DocumentationAgent) handleTokenLimitResponse(originalResponse string) (string, error) {
+	// Read package manifest for context
+	manifest, err := packages.ReadPackageManifestFromPackageRoot(d.packageRoot)
+	if err != nil {
+		return "", fmt.Errorf("failed to read package manifest: %w", err)
+	}
+
+	// Create a section-based generation prompt
+	sectionBasedPrompt := d.buildSectionBasedPrompt(manifest)
+	return sectionBasedPrompt, nil
+}
+
+// buildSectionBasedPrompt creates a prompt for generating README in sections
+func (d *DocumentationAgent) buildSectionBasedPrompt(manifest *packages.PackageManifest) string {
+	return fmt.Sprintf(`You previously hit token limits when generating documentation. Let's break this into manageable sections.
+
+CURRENT TASK: Generate README.md documentation section by section for the integration below.
+
+Package Information:
+* Package Name: %s
+* Title: %s
+* Type: %s
+* Version: %s
+* Description: %s
+
+IMPORTANT INSTRUCTIONS:
+
+1. **Section-Based Approach**: Instead of generating the entire README at once, we'll build it section by section.
+
+2. **Current Strategy**: 
+   - First, use get_readme_template to understand the required structure
+   - Then generate ONLY the first major section (Overview/Introduction)
+   - Write that section to the file
+   - In subsequent iterations, we'll add more sections
+
+3. **First Section Focus**: 
+   - Start with the Overview/Introduction section only
+   - Include: Brief description, compatibility info, and how it works
+   - Keep this section under 1000 words to avoid token limits
+
+4. **Available Tools**: 
+   - get_readme_template: Get the template structure
+   - get_example_readme: Get style reference
+   - list_directory, read_file: Analyze package
+   - write_file: Write the section to _dev/build/docs/README.md
+
+5. **File Strategy**:
+   - Read existing README (if any) to preserve human-edited sections
+   - Write the first section, preserving any existing content
+   - Later iterations will append additional sections
+
+STEP-BY-STEP PROCESS:
+1. Get the template structure using get_readme_template
+2. Read current README.md (if exists) to understand what's already there
+3. Analyze package structure briefly using list_directory
+4. Generate ONLY the Overview/Introduction section
+5. Write this section to the README.md file
+
+Begin by getting the template, then focus on creating just the first section.`,
+		manifest.Name,
+		manifest.Title,
+		manifest.Type,
+		manifest.Version,
+		manifest.Description)
 }
 
 // displayReadmeIfUpdated shows README content if it was updated
@@ -567,7 +670,29 @@ func (d *DocumentationAgent) validatePreservedSections(originalContent, newConte
 }
 
 // isErrorResponse detects if the LLM response indicates an error occurred
+// This is now a wrapper that calls the more sophisticated analysis function
 func isErrorResponse(content string) bool {
+	// Use the enhanced error detection that considers conversation context
+	return isTaskResultError(content, nil)
+}
+
+// isTaskResultError provides sophisticated error detection considering conversation context
+func isTaskResultError(content string, conversation []ConversationEntry) bool {
+	// Empty content is not necessarily an error - it might be after successful tool execution
+	if strings.TrimSpace(content) == "" {
+		// If we have conversation context, check if recent tools succeeded
+		if conversation != nil && hasRecentSuccessfulTools(conversation) {
+			return false
+		}
+		// Empty content without context might indicate a problem, but let's be lenient
+		return false
+	}
+
+	// Check for token limit messages - these are NOT errors, they're recoverable conditions
+	if isTokenLimitMessage(content) {
+		return false
+	}
+
 	errorIndicators := []string{
 		"I encountered an error",
 		"I'm experiencing an error",
@@ -582,9 +707,71 @@ func isErrorResponse(content string) bool {
 	}
 
 	contentLower := strings.ToLower(content)
+
+	// Check for explicit error indicators
+	hasErrorIndicator := false
 	for _, indicator := range errorIndicators {
 		if strings.Contains(contentLower, strings.ToLower(indicator)) {
+			hasErrorIndicator = true
+			break
+		}
+	}
+
+	if !hasErrorIndicator {
+		return false
+	}
+
+	// If we have conversation context and recent tools succeeded, this might be a false error
+	if conversation != nil && hasRecentSuccessfulTools(conversation) {
+		return false
+	}
+
+	return true
+}
+
+// isTokenLimitMessage detects if the LLM response indicates it hit token limits
+func isTokenLimitMessage(content string) bool {
+	tokenLimitIndicators := []string{
+		"I reached the maximum response length",
+		"maximum response length",
+		"reached the token limit",
+		"response is too long",
+		"breaking this into smaller tasks",
+		"due to length constraints",
+		"response length limit",
+		"token limit reached",
+		"output limit exceeded",
+		"maximum length exceeded",
+	}
+
+	contentLower := strings.ToLower(content)
+	for _, indicator := range tokenLimitIndicators {
+		if strings.Contains(contentLower, strings.ToLower(indicator)) {
 			return true
+		}
+	}
+	return false
+}
+
+// hasRecentSuccessfulTools checks if recent tool executions in the conversation were successful
+func hasRecentSuccessfulTools(conversation []ConversationEntry) bool {
+	// Look at the last few conversation entries for successful tool results
+	for i := len(conversation) - 1; i >= 0 && i >= len(conversation)-5; i-- {
+		entry := conversation[i]
+		if entry.Type == "tool_result" {
+			content := strings.ToLower(entry.Content)
+			// Check for success indicators
+			if strings.Contains(content, "✅ success") ||
+				strings.Contains(content, "successfully wrote") ||
+				strings.Contains(content, "completed successfully") {
+				return true
+			}
+			// If we hit an actual error, stop looking
+			if strings.Contains(content, "❌ error") ||
+				strings.Contains(content, "failed:") ||
+				strings.Contains(content, "access denied") {
+				return false
+			}
 		}
 	}
 	return false

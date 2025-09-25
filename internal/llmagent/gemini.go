@@ -127,7 +127,7 @@ func (g *GeminiProvider) GenerateResponse(ctx context.Context, prompt string, to
 			},
 		},
 		GenerationConfig: &googleGenerationConfig{
-			MaxOutputTokens: 4096,
+			MaxOutputTokens: 8192, // Increased for documentation generation
 		},
 	}
 
