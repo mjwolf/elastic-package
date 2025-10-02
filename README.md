@@ -764,6 +764,26 @@ elastic-package update documentation --non-interactive
 
 The AI agent will analyze your package structure, data streams, and configuration to generate comprehensive documentation following Elastic's templates. It provides an interactive process where you can review and request changes before finalizing the documentation.
 
+**Preserving Human-Edited Content:**
+
+When updating documentation with AI assistance, you can preserve manually edited sections by wrapping them with HTML comment markers:
+
+```html
+<!-- HUMAN-EDITED START -->
+Your custom content here that should not be modified by AI
+<!-- HUMAN-EDITED END -->
+```
+
+Or alternatively:
+
+```html
+<!-- PRESERVE START -->
+Important manual content to preserve
+<!-- PRESERVE END -->
+```
+
+Any content between these markers will be preserved exactly as-is during AI-generated documentation updates. The system will automatically detect these sections, validate their preservation after generation, and warn you if any marked content was accidentally modified or removed.
+
 ## Useful environment variables
 
 There are available some environment variables that could be used to change some of the
