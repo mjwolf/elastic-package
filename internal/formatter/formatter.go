@@ -89,6 +89,24 @@ func Format(packageRoot string, failFast bool) error {
 	return nil
 }
 
+// FormatFileContent formats a single file's content in memory without writing to disk.
+// Returns the formatted content and whether the content was already formatted.
+func FormatFileContent(filePath string, content []byte, specVer semver.Version) ([]byte, bool, error) {
+	ext := filepath.Ext(filePath)
+	opts := formatterOptions{
+		extension:   ext,
+		specVersion: specVer,
+	}
+	if !specVer.LessThan(semver.MustParse("3.0.0")) && filepath.Base(filePath) == "manifest.yml" {
+		opts.preferedKeysWithDotAction = KeysWithDotActionNested
+	}
+	f := newFormatter(opts)
+	if f == nil {
+		return content, true, nil
+	}
+	return f(content)
+}
+
 func formatFile(path string, options formatterOptions) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
