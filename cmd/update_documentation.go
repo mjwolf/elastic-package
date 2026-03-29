@@ -18,6 +18,7 @@ import (
 	"github.com/elastic/elastic-package/internal/packages"
 	"github.com/elastic/elastic-package/internal/profile"
 	"github.com/elastic/elastic-package/internal/tui"
+	"github.com/elastic/elastic-package/internal/validation"
 )
 
 const updateDocumentationLongDescription = `Use this command to update package documentation using an AI agent or to get manual instructions for update.
@@ -306,6 +307,15 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 		err = docAgent.UpdateDocumentation(cmd.Context(), nonInteractive)
 		if err != nil {
 			return fmt.Errorf("documentation update failed: %w", err)
+		}
+
+		// After successful full regeneration, ensure validation.yml contains docs_structure_enforced
+		modified, err := validation.EnsureDocsStructureEnforced(packageRoot)
+		if err != nil {
+			// Log warning but don't fail the command
+			cmd.Printf("⚠️  Warning: Failed to update validation.yml: %v\n", err)
+		} else if modified {
+			cmd.Println("✅ Created/updated validation.yml with documentation structure enforcement")
 		}
 	}
 
