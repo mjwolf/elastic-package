@@ -8,9 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/elastic/elastic-package/internal/llmagent/providers"
 	"github.com/elastic/elastic-package/internal/packages/archetype"
@@ -88,6 +91,21 @@ func PackageTools(packageRoot string) []providers.Tool {
 				"required":   []string{},
 			},
 			Handler: getExampleReadmeHandler(),
+		},
+		{
+			Name:        "validate_url",
+			Description: "Validate a URL string for correct syntax (http/https). Returns JSON with validity and issues.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"url": map[string]interface{}{
+						"type":        "string",
+						"description": "The URL to validate",
+					},
+				},
+				"required": []string{"url"},
+			},
+			Handler: validateURLHandler(),
 		},
 	}
 }
@@ -272,5 +290,140 @@ func getExampleReadmeHandler() providers.ToolHandler {
 	return func(ctx context.Context, arguments string) (*providers.ToolResult, error) {
 		// Get the embedded example content
 		return &providers.ToolResult{Content: ExampleReadmeContent}, nil
+	}
+}
+
+// validateURLHandler returns a handler for the validate_url tool
+func validateURLHandler() providers.ToolHandler {
+	return func(ctx context.Context, arguments string) (*providers.ToolResult, error) {
+		var args struct {
+			URL string `json:"url"`
+		}
+
+		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+			return &providers.ToolResult{Error: fmt.Sprintf("failed to parse arguments: %v", err)}, nil
+		}
+
+		input := strings.TrimSpace(args.URL)
+		issues := make([]string, 0)
+		valid := true
+		normalized := ""
+
+		if input == "" {
+			valid = false
+			issues = append(issues, "empty URL")
+		} else if strings.ContainsAny(input, " \t\r\n") {
+			valid = false
+			issues = append(issues, "URL contains whitespace")
+		}
+
+		if valid {
+			u, err := url.Parse(input)
+			if err != nil {
+				valid = false
+				issues = append(issues, fmt.Sprintf("parse error: %v", err))
+			} else {
+				// Require http or https
+				if u.Scheme != "http" && u.Scheme != "https" {
+					valid = false
+					if u.Scheme == "" {
+						issues = append(issues, "missing scheme (expected http or https)")
+					} else {
+						issues = append(issues, "unsupported scheme (only http/https allowed)")
+					}
+				}
+				// Require non-empty host
+				if u.Host == "" {
+					valid = false
+					issues = append(issues, "missing host")
+				}
+				normalized = u.String()
+
+				// If syntactically valid, attempt to reach the URL
+				// Use a short timeout and prefer HEAD; fall back to GET on 405/501.
+				reachCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+
+				client := &http.Client{
+					Timeout: 5 * time.Second,
+				}
+
+				reachable := false
+				statusCode := 0
+				finalURL := ""
+
+				if valid {
+					req, errReq := http.NewRequestWithContext(reachCtx, http.MethodHead, normalized, nil)
+					if errReq != nil {
+						issues = append(issues, fmt.Sprintf("request error: %v", errReq))
+					} else {
+						req.Header.Set("User-Agent", "elastic-package-url-validator/1.0")
+						resp, errDo := client.Do(req)
+						if errDo == nil && resp != nil {
+							statusCode = resp.StatusCode
+							finalURL = resp.Request.URL.String()
+							// Consider 2xx and 3xx as reachable
+							if statusCode >= 200 && statusCode < 400 {
+								reachable = true
+							}
+							// HEAD not allowed -> try GET
+							if statusCode == http.StatusMethodNotAllowed || statusCode == http.StatusNotImplemented {
+								resp.Body.Close()
+								reqGet, errGet := http.NewRequestWithContext(reachCtx, http.MethodGet, normalized, nil)
+								if errGet != nil {
+									issues = append(issues, fmt.Sprintf("request error (GET): %v", errGet))
+								} else {
+									reqGet.Header.Set("User-Agent", "elastic-package-url-validator/1.0")
+									// Try to avoid big payloads
+									reqGet.Header.Set("Range", "bytes=0-0")
+									respGet, errGetDo := client.Do(reqGet)
+									if errGetDo == nil && respGet != nil {
+										statusCode = respGet.StatusCode
+										finalURL = respGet.Request.URL.String()
+										if statusCode >= 200 && statusCode < 400 {
+											reachable = true
+										}
+										respGet.Body.Close()
+									} else if errGetDo != nil {
+										issues = append(issues, fmt.Sprintf("network error (GET): %v", errGetDo))
+									}
+								}
+							}
+							resp.Body.Close()
+						} else if errDo != nil {
+							issues = append(issues, fmt.Sprintf("network error: %v", errDo))
+						}
+					}
+				}
+
+				// Append reachability summary to issues if not reachable
+				if valid && !reachable {
+					if statusCode != 0 {
+						issues = append(issues, fmt.Sprintf("unreachable or unexpected status: %d", statusCode))
+					} else {
+						issues = append(issues, "unreachable: no response")
+					}
+				}
+
+				// Replace normalized with the final URL after redirects if present
+				if finalURL != "" {
+					normalized = finalURL
+				}
+			}
+		}
+
+		// Build JSON result
+		out := struct {
+			Valid         bool     `json:"valid"`
+			NormalizedURL string   `json:"normalized_url,omitempty"`
+			Issues        []string `json:"issues,omitempty"`
+		}{
+			Valid:         valid,
+			NormalizedURL: normalized,
+			Issues:        issues,
+		}
+
+		b, _ := json.Marshal(out)
+		return &providers.ToolResult{Content: string(b)}, nil
 	}
 }

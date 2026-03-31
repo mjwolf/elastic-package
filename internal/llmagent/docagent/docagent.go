@@ -129,6 +129,19 @@ func (d *DocumentationAgent) UpdateDocumentation(ctx context.Context, nonInterac
 	return d.runInteractiveMode(ctx, prompt)
 }
 
+// VerifyDocumentation runs the documentation verification process
+func (d *DocumentationAgent) VerifyDocumentation(ctx context.Context, _ bool) error {
+	// Backup original README content before making any changes
+	d.backupOriginalReadme()
+
+	// Create the initial prompt
+	promptCtx := d.createPromptContext(d.manifest, "")
+	prompt := d.buildPrompt(PromptTypeVerification, promptCtx)
+
+	return d.runNonInteractiveMode(ctx, prompt)
+	
+}
+
 // ModifyDocumentation runs the documentation modification process for targeted changes
 func (d *DocumentationAgent) ModifyDocumentation(ctx context.Context, nonInteractive bool, modifyPrompt string) error {
 	// Check if documentation file exists

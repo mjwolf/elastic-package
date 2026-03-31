@@ -20,6 +20,8 @@ const (
 	promptFileInitial  = "initial_prompt.txt"
 	promptFileRevision = "revision_prompt.txt"
 	promptFileLimitHit = "limit_hit_prompt.txt"
+	promptFileVerification = "verification_prompt.txt"
+	promptFileServiceInfo = "service_info_prompt.txt"
 )
 
 type PromptType int
@@ -28,6 +30,8 @@ const (
 	PromptTypeInitial PromptType = iota
 	PromptTypeRevision
 	PromptTypeSectionBased
+	PromptTypeVerification
+	PromptTypeServiceInfo
 )
 
 // loadPromptFile loads a prompt file from external location if enabled, otherwise uses embedded content
@@ -103,6 +107,14 @@ func (d *DocumentationAgent) buildPrompt(promptType PromptType, ctx PromptContex
 		promptFile = promptFileLimitHit
 		embeddedContent = LimitHitPrompt
 		formatArgs = d.buildSectionBasedPromptArgs(ctx)
+	case PromptTypeVerification:
+		promptFile = promptFileVerification
+		embeddedContent = VerificationPrompt
+		formatArgs = d.buildVerificationPromptArgs(ctx)
+	case PromptTypeServiceInfo:
+		promptFile = promptFileServiceInfo
+		embeddedContent = ServiceInfoPrompt
+		// no format args needed
 	}
 
 	promptContent := loadPromptFile(promptFile, embeddedContent, d.profile)
@@ -167,6 +179,22 @@ func (d *DocumentationAgent) buildSectionBasedPromptArgs(ctx PromptContext) []in
 		ctx.Manifest.Description,
 		ctx.TargetDocFile, // write_file tool description
 		ctx.TargetDocFile, // step 2 - read current file
+	}
+}
+
+// buildVerificationPromptArgs prepares arguments for verification prompt
+func (d *DocumentationAgent) buildVerificationPromptArgs(ctx PromptContext) []interface{} {
+	return []interface{}{
+		ctx.TargetDocFile, // target documentation file label
+		ctx.Manifest.Name,
+		ctx.Manifest.Title,
+		ctx.Manifest.Type,
+		ctx.Manifest.Version,
+		ctx.Manifest.Description,
+		ctx.TargetDocFile, // file restriction directive
+		ctx.TargetDocFile, // tool usage guideline
+		ctx.TargetDocFile, // initial analysis step
+		ctx.TargetDocFile, // write results step
 	}
 }
 

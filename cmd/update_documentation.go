@@ -58,6 +58,7 @@ Configuration options for LLM providers (environment variables or profile config
 const (
 	modePromptRewrite = "Rewrite (full regeneration)"
 	modePromptModify  = "Modify (targeted changes)"
+	modePromptVerify  = "Verify (documentation verification)"
 )
 
 // getConfigValue retrieves a configuration value with fallback from environment variable to profile config
@@ -251,6 +252,7 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 
 	// Determine the mode based on user input
 	var useModifyMode bool
+	var useVerifyMode bool
 
 	// Skip confirmation prompt in non-interactive mode
 	if !nonInteractive {
@@ -270,9 +272,10 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 
 		// If no modify-prompt flag was provided, ask user to choose mode
 		if modifyPrompt == "" {
-			modePrompt := tui.NewSelect("Do you want to rewrite or modify the documentation?", []string{
+			modePrompt := tui.NewSelect("Do you want to rewrite, modify or verify the documentation?", []string{
 				modePromptRewrite,
 				modePromptModify,
+				modePromptVerify,
 			}, modePromptRewrite)
 
 			var mode string
@@ -282,12 +285,15 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 			}
 
 			useModifyMode = mode == "Modify (targeted changes)"
+			useVerifyMode = mode == "Verify (documentation verification)"
 		} else {
 			useModifyMode = true
+			useVerifyMode = false
 		}
 	} else {
 		cmd.Println("Running in non-interactive mode - proceeding automatically.")
 		useModifyMode = modifyPrompt != ""
+		useVerifyMode = false
 	}
 
 	// Create the documentation agent
@@ -303,9 +309,16 @@ func updateDocumentationCommandAction(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("documentation modification failed: %w", err)
 		}
 	} else {
-		err = docAgent.UpdateDocumentation(cmd.Context(), nonInteractive)
-		if err != nil {
-			return fmt.Errorf("documentation update failed: %w", err)
+		if useVerifyMode {
+			err = docAgent.VerifyDocumentation(cmd.Context(), nonInteractive)
+			if err != nil {
+				return fmt.Errorf("documentation verification failed: %w", err)
+			}
+		} else {
+			err = docAgent.UpdateDocumentation(cmd.Context(), nonInteractive)
+			if err != nil {
+				return fmt.Errorf("documentation update failed: %w", err)
+			}
 		}
 	}
 
