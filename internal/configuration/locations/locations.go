@@ -104,6 +104,11 @@ func (loc LocationManager) LLMDir() string {
 	return filepath.Join(loc.stackPath, llmDir)
 }
 
+// MCPJson returns the file location for the MCP server configuration
+func (loc LocationManager) MCPJson() string {
+	return filepath.Join(loc.LLMDir(), mcpJsonName)
+}
+
 // configurationDir returns the configuration directory location
 // If a environment variable named as in elasticPackageDataHome is present,
 // the value is used as is, overriding the value of this function.

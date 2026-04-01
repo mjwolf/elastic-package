@@ -19,6 +19,7 @@ import (
 	"github.com/elastic/elastic-package/internal/llmagent/docagent/parsing"
 	"github.com/elastic/elastic-package/internal/llmagent/docagent/prompts"
 	"github.com/elastic/elastic-package/internal/llmagent/docagent/workflow"
+	"github.com/elastic/elastic-package/internal/llmagent/mcptools"
 	"github.com/elastic/elastic-package/internal/llmagent/tools"
 	"github.com/elastic/elastic-package/internal/llmagent/tracing"
 	"github.com/elastic/elastic-package/internal/logger"
@@ -146,6 +147,9 @@ func NewDocumentationAgent(ctx context.Context, cfg AgentConfig) (*Documentation
 	// Get package tools
 	packageTools := tools.PackageTools(cfg.PackageRoot, serviceInfoManager)
 
+	// Load MCP toolsets
+	mcpToolsets := mcptools.LoadToolsets()
+
 	// Create executor configuration with system instructions
 	provider := cfg.Provider
 	if provider == "" {
@@ -160,8 +164,8 @@ func NewDocumentationAgent(ctx context.Context, cfg AgentConfig) (*Documentation
 		TracingConfig:  cfg.TracingConfig,
 	}
 
-	// Create executor with tools
-	exec, err := executor.NewWithToolsets(ctx, execCfg, packageTools, nil)
+	// Create executor with tools and toolsets
+	exec, err := executor.NewWithToolsets(ctx, execCfg, packageTools, mcpToolsets)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create executor: %w", err)
 	}
